@@ -416,7 +416,7 @@ if modo == "🔍 Inspeccionar un Lote":
     else:
         st.info("Cargá datos desde Colab para ver la evolución histórica.")
     st.divider()
-    st.subheader("🤖 Consulta al Ingeniero AgroIA")
+    st.subheader("🤖 Consulta al Asistente AgroIA")
     if "msgs" not in st.session_state:
         st.session_state.msgs = []
     for m in st.session_state.msgs:
