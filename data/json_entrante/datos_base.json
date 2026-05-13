@@ -1,0 +1,893 @@
+[
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2021-10-15",
+    "ndvi": 0.6382,
+    "gdd_proxy": 30.6,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2021-10-15. NDVI: 0.638. Horas estrés térmico: 30.6h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 10,
+      "año_campana": 2021,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2021-11-15",
+    "ndvi": 0.2422,
+    "gdd_proxy": 15.1,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2021-11-15. NDVI: 0.242. Horas estrés térmico: 15.1h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 11,
+      "año_campana": 2021,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2021-12-15",
+    "ndvi": 0.2119,
+    "gdd_proxy": 0.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2021-12-15. NDVI: 0.212. Horas estrés térmico: 0.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 12,
+      "año_campana": 2021,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2021-01-15",
+    "ndvi": 0.47,
+    "gdd_proxy": 33.3,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2021-01-15. NDVI: 0.470. Horas estrés térmico: 33.3h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 1,
+      "año_campana": 2021,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2021-02-15",
+    "ndvi": 0.8821,
+    "gdd_proxy": 0.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2021-02-15. NDVI: 0.882. Horas estrés térmico: 0.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 2,
+      "año_campana": 2021,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2021-03-15",
+    "ndvi": 0.8713,
+    "gdd_proxy": 0.5,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2021-03-15. NDVI: 0.871. Horas estrés térmico: 0.5h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 3,
+      "año_campana": 2021,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2022-10-15",
+    "ndvi": 0.2152,
+    "gdd_proxy": 6.4,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2022-10-15. NDVI: 0.215. Horas estrés térmico: 6.4h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 10,
+      "año_campana": 2022,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2022-11-15",
+    "ndvi": 0.213,
+    "gdd_proxy": 58.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2022-11-15. NDVI: 0.213. Horas estrés térmico: 58.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 11,
+      "año_campana": 2022,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2022-12-15",
+    "ndvi": 0.2229,
+    "gdd_proxy": 0.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2022-12-15. NDVI: 0.223. Horas estrés térmico: 0.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 12,
+      "año_campana": 2022,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2022-01-15",
+    "ndvi": 0.2575,
+    "gdd_proxy": 109.9,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2022-01-15. NDVI: 0.257. Horas estrés térmico: 109.9h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 1,
+      "año_campana": 2022,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2022-02-15",
+    "ndvi": 0.7723,
+    "gdd_proxy": 24.4,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2022-02-15. NDVI: 0.772. Horas estrés térmico: 24.4h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 2,
+      "año_campana": 2022,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2022-03-15",
+    "ndvi": 0.8206,
+    "gdd_proxy": 0.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2022-03-15. NDVI: 0.821. Horas estrés térmico: 0.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 3,
+      "año_campana": 2022,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2023-10-15",
+    "ndvi": 0.2156,
+    "gdd_proxy": 10.2,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2023-10-15. NDVI: 0.216. Horas estrés térmico: 10.2h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 10,
+      "año_campana": 2023,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2023-11-15",
+    "ndvi": 0.2172,
+    "gdd_proxy": 25.5,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2023-11-15. NDVI: 0.217. Horas estrés térmico: 25.5h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 11,
+      "año_campana": 2023,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2023-12-15",
+    "ndvi": 0.2512,
+    "gdd_proxy": 0.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2023-12-15. NDVI: 0.251. Horas estrés térmico: 0.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 12,
+      "año_campana": 2023,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2023-01-15",
+    "ndvi": 0.3803,
+    "gdd_proxy": 96.4,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2023-01-15. NDVI: 0.380. Horas estrés térmico: 96.4h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 1,
+      "año_campana": 2023,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2023-02-15",
+    "ndvi": 0.8165,
+    "gdd_proxy": 51.6,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2023-02-15. NDVI: 0.817. Horas estrés térmico: 51.6h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 2,
+      "año_campana": 2023,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2023-03-15",
+    "ndvi": 0.7832,
+    "gdd_proxy": 65.3,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2023-03-15. NDVI: 0.783. Horas estrés térmico: 65.3h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 3,
+      "año_campana": 2023,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2024-10-15",
+    "ndvi": 0.246,
+    "gdd_proxy": 1.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2024-10-15. NDVI: 0.246. Horas estrés térmico: 1.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 10,
+      "año_campana": 2024,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2024-11-15",
+    "ndvi": 0.2352,
+    "gdd_proxy": 15.3,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2024-11-15. NDVI: 0.235. Horas estrés térmico: 15.3h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 11,
+      "año_campana": 2024,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2024-12-15",
+    "ndvi": 0.2221,
+    "gdd_proxy": 0.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2024-12-15. NDVI: 0.222. Horas estrés térmico: 0.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 12,
+      "año_campana": 2024,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2024-01-15",
+    "ndvi": 0.7397,
+    "gdd_proxy": 19.6,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2024-01-15. NDVI: 0.740. Horas estrés térmico: 19.6h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 1,
+      "año_campana": 2024,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2024-02-15",
+    "ndvi": 0.7216,
+    "gdd_proxy": 43.5,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2024-02-15. NDVI: 0.722. Horas estrés térmico: 43.5h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 2,
+      "año_campana": 2024,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2024-03-15",
+    "ndvi": 0.7111,
+    "gdd_proxy": 30.5,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2024-03-15. NDVI: 0.711. Horas estrés térmico: 30.5h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 3,
+      "año_campana": 2024,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2025-10-15",
+    "ndvi": 0.6449,
+    "gdd_proxy": 3.4,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2025-10-15. NDVI: 0.645. Horas estrés térmico: 3.4h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 10,
+      "año_campana": 2025,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2025-11-15",
+    "ndvi": 0.2672,
+    "gdd_proxy": 25.9,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2025-11-15. NDVI: 0.267. Horas estrés térmico: 25.9h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 11,
+      "año_campana": 2025,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2025-12-15",
+    "ndvi": 0.2412,
+    "gdd_proxy": 0.0,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2025-12-15. NDVI: 0.241. Horas estrés térmico: 0.0h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 12,
+      "año_campana": 2025,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2025-01-15",
+    "ndvi": 0.3765,
+    "gdd_proxy": 74.6,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2025-01-15. NDVI: 0.376. Horas estrés térmico: 74.6h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 1,
+      "año_campana": 2025,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2025-02-15",
+    "ndvi": 0.8541,
+    "gdd_proxy": 101.4,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2025-02-15. NDVI: 0.854. Horas estrés térmico: 101.4h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 2,
+      "año_campana": 2025,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2025-03-15",
+    "ndvi": 0.8968,
+    "gdd_proxy": 11.7,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2025-03-15. NDVI: 0.897. Horas estrés térmico: 11.7h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 3,
+      "año_campana": 2025,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2026-01-15",
+    "ndvi": 0.2759,
+    "gdd_proxy": 45.1,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2026-01-15. NDVI: 0.276. Horas estrés térmico: 45.1h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 1,
+      "año_campana": 2026,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2026-02-15",
+    "ndvi": 0.6386,
+    "gdd_proxy": 19.7,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2026-02-15. NDVI: 0.639. Horas estrés térmico: 19.7h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 2,
+      "año_campana": 2026,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  },
+  {
+    "lote_id": "Establecimiento Demo 2026",
+    "fecha": "2026-03-15",
+    "ndvi": 0.8483,
+    "gdd_proxy": 30.6,
+    "precip": null,
+    "estabilidad_yield": 0.14,
+    "contenido_tecnico": "Lote Establecimiento Demo 2026 | 160.74 ha de Maiz | Fecha: 2026-03-15. NDVI: 0.848. Horas estrés térmico: 30.6h. CV espacial: 0.377. Score AgroIA anual: 28/100.",
+    "meta": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "mes_analisis": 3,
+      "año_campana": 2026,
+      "score_total": 28,
+      "score_desglose": {
+        "total": 28,
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "version_agroia": "2.4.0",
+      "tipo_documento": "monitoreo_mensual"
+    }
+  }
+]

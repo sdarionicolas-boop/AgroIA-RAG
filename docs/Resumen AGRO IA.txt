@@ -1,0 +1,122 @@
+AgroIA — Resumen técnico completo
+¿Qué es AgroIA?
+Sistema de diagnóstico agronómico automatizado que toma el shapefile de un lote y genera, en 15–20 minutos, un informe técnico completo con trazabilidad total. No es una app, no es un dashboard — es un pipeline de análisis que entrega dos archivos listos para usar: un PDF profesional y un mapa interactivo HTML con GPS.
+Está construido en Python sobre Google Colab (T4), usa fuentes de datos públicas y gratuitas, y tiene costo operativo casi cero.
+
+MÓDULO 1 — AgroIA Extensivos
+¿Qué hace?
+Analiza el historial satelital y climático de un lote agrícola para determinar su potencial productivo real, su variabilidad espacial interna, y los riesgos climáticos de la campaña actual.
+Entrada
+Un archivo shapefile (.shp + .shx + .dbf + .prj) de cualquier lote agrícola. Nada más.
+Pipeline interno
+Paso 1 — Validación del shapefile
+Antes de tocar ninguna API, el sistema verifica 7 condiciones: que el CRS exista, que la geometría sea válida, que no haya multipolígonos sin resolver, que la superficie sea razonable (mínimo 1 ha, aviso si supera 10.000 ha), y que las coordenadas sean geográficamente plausibles. Si hay un multipolígono, toma el de mayor área y avisa. Si la geometría tiene errores topológicos, aplica corrección automática con buffer(0). Los mensajes de error son legibles, no crípticos.
+Paso 2 — UTM dinámico
+Calcula la zona UTM correcta según la longitud del centroide del lote. Para Argentina detecta automáticamente zona 19S, 20S o 21S. Esto garantiza que las hectáreas calculadas sean exactas — diferenciador clave cuando el productor compara contra su escritura.
+Paso 3 — Clima histórico (NASA POWER + sinusoidal)
+Descarga datos diarios de Tmax y Tmin desde NASA POWER para cada año de la serie (default 2021–2026). Aplica interpolación sinusoidal para estimar las horas diarias sobre el umbral térmico crítico:
+T(h) = Tmean + Tamp · cos(π · (h − 14) / 12)
+Para maíz el umbral es 35°C en enero (floración). Para trigo es 30°C en octubre (antesis). El resultado es un número concreto: "el cultivo estuvo expuesto a 29.5 horas sobre 35°C en la ventana crítica" — dato citeable en bibliografía INTA/Nebraska para cuantificar riesgo de sopladura.
+Paso 4 — NDVI histórico (GEE Sentinel-2)
+Para cada año de la serie, descarga el mosaico mediano de Sentinel-2 SR en el mes crítico del cultivo, con cloud masking automático (CLOUDY_PIXEL_PERCENTAGE < 20%). Si el mes crítico no tiene imágenes limpias, expande la ventana hasta ±2 meses y avisa en el log. Cada valor NDVI pasa por validación agronómica: si está por debajo del mínimo viable para el cultivo (0.25 para maíz), el año se excluye del Score y se marca en el gráfico histórico.
+Paso 5 — Sanity check de NDVI bajo
+Si el NDVI del año actual en la ventana crítica es menor a 0.50 para maíz (0.45 soja, 0.40 trigo), el sistema calcula la caída porcentual respecto al mejor año histórico y genera una alerta en el informe: "NDVI bajo en ventana crítica — caída del X% respecto al máximo histórico. Se recomienda recorrida de campo para confirmar el diagnóstico."
+Paso 6 — Score AgroIA (0–100)
+Fórmula polinómica con cuatro componentes, todos con fórmula pública documentada en el informe:
+
+40% Vigor: (NDVI_crítico / 0.9) × 40 — qué tan verde estuvo el lote en el momento que importa
+30% Estabilidad: (1 − CV / 0.45) × 30 — qué tan consistente fue ese verde año a año (inverso del coeficiente de variación interanual, techo 0.45 calibrado para series cortas de Zona Núcleo)
+20% Limpieza IA: Isolation Forest sobre la serie histórica con contamination=0.2 — detecta años anómalos por granizo, sequía extrema, o fallas de implantación y los excluye para ver el potencial real del suelo
+10% Clima: (1 − horas_estres / 20) × 10 — penalización por estrés térmico en ventana crítica
+
+El Score tiene color semáforo: verde ≥70, naranja ≥45, rojo <45.
+Paso 7 — CV espacial y zonificación A/B/C
+Calcula el Coeficiente de Variación espacial del NDVI dentro del lote usando píxeles reales de GEE. Si CV > 0.05, activa la zonificación K-Means con 2000 píxeles muestreados. Si CV ≤ 0.05, reporta "Lote Homogéneo" y no inventa zonas. Las zonas se etiquetan por NDVI descendente: A (alto potencial), B (variable), C (limitante).
+Entregables
+PDF profesional (5 páginas):
+
+Portada con Score en círculo semáforo, datos del lote (hectáreas exactas, EPSG, coordenadas), desglose de los 4 componentes
+Sección 1: Diagnóstico integrado con párrafo generado automáticamente con todos los valores numéricos insertados, gauge semicircular con barras de componentes
+Sección 2: Serie histórica NDVI con años excluidos marcados en gris, banda ±1σ, punto rojo para el año actual, tabla detallada por campaña
+Sección 3: Barras de estrés térmico por año con colores semáforo, nota metodológica sobre la sinusoidal y limitación conocida
+Sección 4: Recomendaciones automáticas generadas desde los datos (Alto Potencial / Potencial Intermedio / Zona Limitante, Alerta de Sopladura, alerta NDVI bajo, datos excluidos)
+Sección 5: Cuadro metodológico completo con módulo, fuente, método y limitación conocida para cada componente. Log auditable línea por línea.
+
+Mapa HTML interactivo (offline-first):
+
+Fondo OSM como base (funciona sin señal), satélite Google como capa opcional
+Puntos A/B/C con tooltip enriquecido: zona, NDVI, coordenadas exactas
+Puntos Zona C más grandes, con popup que incluye link directo a Google Maps del píxel exacto
+GPS integrado (funciona sin internet) — el agrónomo sabe en qué zona está parado mientras camina el lote
+Panel de capas desplegado por default
+
+CSV de puntos críticos Zona C:
+Exporta automáticamente las coordenadas (lat, lon, ndvi, zona) de todos los píxeles Zona C. Importable en Avenza Maps, Google My Maps, o cualquier GPS de campo.
+Cultivos configurados
+CultivoTbaseUmbral térmicoMes críticoNDVI mínimoMaíz10°C35°CEnero0.25Soja10°C35°CFebrero0.25Trigo0°C30°COctubre0.20
+Cualquier cultivo con fenología conocida es configurable en el CONFIG.
+
+MÓDULO 2 — AgroIA Siniestros
+¿Qué hace?
+Analiza el impacto de un evento climático puntual (granizo, helada, viento, sequía) sobre un lote, comparando imágenes Sentinel-2 antes y después del evento. Genera un informe técnico complementario a la pericia de campo, con estimación de daño ponderada por la etapa fenológica del cultivo en el momento del evento.
+Posicionamiento explícito: no reemplaza al perito matriculado ni el acta de campo. Provee evidencia satelital objetiva, trazable y reproducible como respaldo técnico adicional.
+Entrada
+
+Shapefile del lote
+Fecha del evento (formato YYYY-MM-DD)
+Cultivo
+Opcionalmente: NDVI histórico medio del lote (del Módulo 1) para comparación adicional
+
+Pipeline interno
+Paso 1 — Validación del shapefile
+Igual que el Módulo 1. Los mismos 7 controles.
+Paso 2 — Búsqueda de imagen PRE-evento
+Busca la imagen Sentinel-2 más limpia (menor CLOUDY_PIXEL_PERCENTAGE) en los N días previos al evento (default 15, máximo 30). Si no encuentra imagen limpia en la ventana inicial, la expande automáticamente. Avisa si la imagen encontrada está a más días del evento de lo esperado.
+Paso 3 — Búsqueda de imagen POST-evento
+Mismo proceso hacia adelante. Siempre toma la más limpia, no la más cercana — porque una imagen con nubes parciales genera valores NDVI artificialmente bajos que inflarían el daño estimado.
+Paso 4 — Muestreo de píxeles
+Descarga 2000 píxeles de NDVI de cada imagen dentro del polígono del lote, a escala 10m (resolución nativa Sentinel-2). Retorna coordenadas + valor NDVI por píxel.
+Paso 5 — Cálculo de daño
+delta_rel = (NDVI_pre − NDVI_post) / NDVI_pre × 100
+dano_ponderado = delta_rel × peso_fenológico × factor_conservador (0.92)
+El factor conservador (0.92) hace el número más prudente ante la aseguradora. El peso fenológico es el diferenciador clave:
+CultivoEtapa en el mes del eventoPesoMaíz eneroFloración / llenado (R1-R4)1.0Maíz marzoMadurez / cosecha0.2Trigo octubreAntesis / llenado (crítico)1.0Trigo julioMacollaje temprano0.2
+Un mismo 30% de caída NDVI vale 30% de daño en floración pero solo 6% en barbecho. Eso es lo que los peritos saben pero no tienen sistematizado.
+Clasificación final: Leve (<20%), Moderado (20–40%), Severo (>40%).
+Paso 6 — Zonificación espacial del daño
+Clasifica cada píxel post-evento en Leve / Moderado / Severo comparando su NDVI contra el NDVI pre medio del lote. Genera GeoDataFrame con coordenadas y zona de daño por píxel.
+Entregables
+PDF profesional (5 páginas):
+
+Portada con % de daño ponderado en círculo semáforo (verde/naranja/rojo), datos del siniestro (perito, expediente, fechas PRE/POST, etapa fenológica, vulnerabilidad), tabla de métricas clave
+Sección 1: Diagnóstico del daño con tabla completa (NDVI pre, NDVI post, delta absoluto, delta relativo, peso fenológico, daño ponderado) con última fila destacada
+Sección 2: Gráfico comparativo — barras PRE vs POST + histograma de distribución de píxeles en ambos períodos
+Sección 3: Mapa espacial del daño con píxeles coloreados por zona (verde/naranja/rojo) y porcentaje del área muestreada por zona
+Sección 4: Calendario fenológico del cultivo con el mes del evento marcado en rojo, explicación del peso aplicado
+Sección 5: Metodología y trazabilidad con tabla de módulos/fuentes/métodos/limitaciones. Log de procesamiento. Disclaimer explícito.
+
+Mapa HTML interactivo:
+
+Puntos por zona de daño (Leve / Moderado / Severo) con capas separadas
+Puntos Severo más grandes y con popup que incluye NDVI post-evento, coordenadas exactas, y link a Google Maps
+GPS integrado para que el perito camine el lote y verifique los píxeles más dañados
+
+Validación real
+El análisis manual del perito que publicó en LinkedIn obtuvo 49% de daño vs 50% en campo. AgroIA Siniestros automatiza exactamente ese proceso, agrega el cruce fenológico, y lo entrega en un PDF con trazabilidad completa en lugar de una captura de pantalla.
+
+Stack tecnológico
+ComponenteTecnologíaCostoImágenes satelitalesGoogle Earth Engine — Sentinel-2 SR HarmonizedGratuitoDatos climáticosNASA POWER APIGratuitoProcesamientoPython — geopandas, sklearn, numpy, matplotlibGratuitoPDFReportLab + pypdfGratuitoMapa interactivoFolium + LeafletGratuitoEntorno de ejecuciónGoogle Colab T4GratuitoCosto operativo por lote~0
+
+Versiones actuales
+
+Motor Extensivos: v2.4 — UTM dinámico, validación shapefile robusta, fallback de ventana NDVI, CV techo 0.45, alerta NDVI bajo
+Módulo Siniestros: v1.1 — factor conservador, comparación con histórico, búsqueda adaptativa de imágenes
+
+
+Lo que el sistema no hace (limitaciones documentadas)
+
+No reemplaza la recorrida de campo ni el acta del perito matriculado
+La sinusoidal estima horas de estrés — no es dato de estación meteorológica local
+Resolución temporal de 5 días (revisita Sentinel-2) — no detecta el día exacto del evento
+Con nubosidad extrema (>80% por más de 30 días) puede no encontrar imagen válida
+El Score se calibra mejor con más años de historia — con menos de 3 años válidos la Estabilidad se penaliza automáticamente

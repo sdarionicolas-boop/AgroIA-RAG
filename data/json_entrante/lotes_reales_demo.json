@@ -1,0 +1,157 @@
+[
+  {
+    "lote_id": "TAYPE_LOTE_001",
+    "fecha": "2026-03-15",
+    "ndvi_promedio": 0.72,
+    "gdd_acumulados": 420.5,
+    "contenido_tecnico": "AgroIA TAYPE_LOTE_001 | MAIZ | 72.59 ha\nScore consolidado: 72/100\nComponentes: Vigor 32.0/40 | Estabilidad 21.0/30 | Limpieza 14.0/20 | Clima 5.0/10\nCV espacial: 0.18 | Zonificacion: Activa\n\nHistorial por campana:\n  2021: NDVI critico 0.65 | Estres termico 45h | Score 68/100\n  2022: NDVI critico 0.71 | Estres termico 38h | Score 75/100\n  2023: NDVI critico 0.58 | Estres termico 62h | Score 58/100\n  2024: NDVI critico 0.73 | Estres termico 28h | Score 79/100\n  2025: NDVI critico 0.69 | Estres termico 41h | Score 71/100\n  2026: NDVI critico 0.72 | Estres termico 35h | Score 72/100",
+    "metadata": {
+      "cultivo": "maiz",
+      "superficie_ha": 72.59,
+      "score_total": 72,
+      "score_desglose": {
+        "vigor": 32.0,
+        "estabilidad": 21.0,
+        "limpieza": 14.0,
+        "clima": 5.0
+      },
+      "cv_espacial": 0.18,
+      "zonificacion_activa": true,
+      "puntos_zona_c": 12,
+      "version_agroia": "2.4.0",
+      "localidad": "Intendente Alvear"
+    },
+    "historial_anos": [
+      {"anio": 2021, "cultivo": "maiz", "ndvi_critico": 0.652, "horas_calor": 45.0, "score_total": 68, "score_vigor": 29.0, "score_estabilidad": 20.0, "score_limpieza": 14.0, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2022, "cultivo": "maiz", "ndvi_critico": 0.708, "horas_calor": 38.0, "score_total": 75, "score_vigor": 31.5, "score_estabilidad": 24.0, "score_limpieza": 14.5, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2023, "cultivo": "maiz", "ndvi_critico": 0.578, "horas_calor": 62.0, "score_total": 58, "score_vigor": 25.7, "score_estabilidad": 16.0, "score_limpieza": 12.3, "score_clima": 4.0, "valido_para_score": true},
+      {"anio": 2024, "cultivo": "maiz", "ndvi_critico": 0.730, "horas_calor": 28.0, "score_total": 79, "score_vigor": 32.4, "score_estabilidad": 26.0, "score_limpieza": 15.6, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2025, "cultivo": "maiz", "ndvi_critico": 0.690, "horas_calor": 41.0, "score_total": 71, "score_vigor": 30.7, "score_estabilidad": 21.5, "score_limpieza": 13.8, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2026, "cultivo": "maiz", "ndvi_critico": 0.720, "horas_calor": 35.0, "score_total": 72, "score_vigor": 32.0, "score_estabilidad": 21.0, "score_limpieza": 14.0, "score_clima": 5.0, "valido_para_score": true}
+    ]
+  },
+  {
+    "lote_id": "TAYPE_LOTE_002",
+    "fecha": "2026-03-15",
+    "ndvi_promedio": 0.58,
+    "gdd_acumulados": 580.2,
+    "contenido_tecnico": "AgroIA TAYPE_LOTE_002 | SOJA | 45.32 ha\nScore consolidado: 58/100\nComponentes: Vigor 25.8/40 | Estabilidad 15.0/30 | Limpieza 12.2/20 | Clima 5.0/10\nCV espacial: 0.28 | Zonificacion: Activa\n\nHistorial por campana:\n  2021: NDVI critico 0.52 | Estres termico 78h | Score 45/100\n  2022: NDVI critico 0.61 | Estres termico 55h | Score 62/100\n  2023: NDVI critico 0.55 | Estres termico 82h | Score 48/100\n  2024: NDVI critico 0.64 | Estres termico 42h | Score 68/100\n  2025: NDVI critico 0.57 | Estres termico 65h | Score 52/100\n  2026: NDVI critico 0.58 | Estres termico 58h | Score 58/100",
+    "metadata": {
+      "cultivo": "soja",
+      "superficie_ha": 45.32,
+      "score_total": 58,
+      "score_desglose": {
+        "vigor": 25.8,
+        "estabilidad": 15.0,
+        "limpieza": 12.2,
+        "clima": 5.0
+      },
+      "cv_espacial": 0.28,
+      "zonificacion_activa": true,
+      "puntos_zona_c": 28,
+      "version_agroia": "2.4.0",
+      "localidad": "Intendente Alvear"
+    },
+    "historial_anos": [
+      {"anio": 2021, "cultivo": "soja", "ndvi_critico": 0.520, "horas_calor": 78.0, "score_total": 45, "score_vigor": 23.1, "score_estabilidad": 12.0, "score_limpieza": 9.9, "score_clima": 0.0, "valido_para_score": true},
+      {"anio": 2022, "cultivo": "soja", "ndvi_critico": 0.610, "horas_calor": 55.0, "score_total": 62, "score_vigor": 27.1, "score_estabilidad": 18.0, "score_limpieza": 11.9, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2023, "cultivo": "soja", "ndvi_critico": 0.550, "horas_calor": 82.0, "score_total": 48, "score_vigor": 24.4, "score_estabilidad": 13.5, "score_limpieza": 10.1, "score_clima": 0.0, "valido_para_score": true},
+      {"anio": 2024, "cultivo": "soja", "ndvi_critico": 0.640, "horas_calor": 42.0, "score_total": 68, "score_vigor": 28.4, "score_estabilidad": 20.0, "score_limpieza": 14.6, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2025, "cultivo": "soja", "ndvi_critico": 0.570, "horas_calor": 65.0, "score_total": 52, "score_vigor": 25.3, "score_estabilidad": 14.0, "score_limpieza": 10.7, "score_clima": 2.0, "valido_para_score": true},
+      {"anio": 2026, "cultivo": "soja", "ndvi_critico": 0.580, "horas_calor": 58.0, "score_total": 58, "score_vigor": 25.8, "score_estabilidad": 15.0, "score_limpieza": 12.2, "score_clima": 5.0, "valido_para_score": true}
+    ]
+  },
+  {
+    "lote_id": "INTA_PIVOTE_001",
+    "fecha": "2026-03-15",
+    "ndvi_promedio": 0.81,
+    "gdd_acumulados": 310.8,
+    "contenido_tecnico": "AgroIA INTA_PIVOTE_001 | MAIZ | 42.74 ha\nScore consolidado: 85/100\nComponentes: Vigor 36.0/40 | Estabilidad 27.0/30 | Limpieza 17.0/20 | Clima 5.0/10\nCV espacial: 0.09 | Zonificacion: Activa\n\nHistorial por campana:\n  2021: NDVI critico 0.75 | Estres termico 22h | Score 78/100\n  2022: NDVI critico 0.82 | Estres termico 18h | Score 86/100\n  2023: NDVI critico 0.79 | Estres termico 25h | Score 82/100\n  2024: NDVI critico 0.84 | Estres termico 15h | Score 89/100\n  2025: NDVI critico 0.77 | Estres termico 30h | Score 80/100\n  2026: NDVI critico 0.81 | Estres termico 24h | Score 85/100",
+    "metadata": {
+      "cultivo": "maiz",
+      "superficie_ha": 42.74,
+      "score_total": 85,
+      "score_desglose": {
+        "vigor": 36.0,
+        "estabilidad": 27.0,
+        "limpieza": 17.0,
+        "clima": 5.0
+      },
+      "cv_espacial": 0.09,
+      "zonificacion_activa": true,
+      "puntos_zona_c": 3,
+      "version_agroia": "2.4.0",
+      "localidad": "Tandil"
+    },
+    "historial_anos": [
+      {"anio": 2021, "cultivo": "maiz", "ndvi_critico": 0.750, "horas_calor": 22.0, "score_total": 78, "score_vigor": 33.3, "score_estabilidad": 24.5, "score_limpieza": 15.2, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2022, "cultivo": "maiz", "ndvi_critico": 0.820, "horas_calor": 18.0, "score_total": 86, "score_vigor": 36.4, "score_estabilidad": 27.5, "score_limpieza": 17.1, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2023, "cultivo": "maiz", "ndvi_critico": 0.790, "horas_calor": 25.0, "score_total": 82, "score_vigor": 35.1, "score_estabilidad": 26.0, "score_limpieza": 15.9, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2024, "cultivo": "maiz", "ndvi_critico": 0.840, "horas_calor": 15.0, "score_total": 89, "score_vigor": 37.3, "score_estabilidad": 28.5, "score_limpieza": 18.2, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2025, "cultivo": "maiz", "ndvi_critico": 0.770, "horas_calor": 30.0, "score_total": 80, "score_vigor": 34.2, "score_estabilidad": 25.0, "score_limpieza": 15.8, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2026, "cultivo": "maiz", "ndvi_critico": 0.810, "horas_calor": 24.0, "score_total": 85, "score_vigor": 36.0, "score_estabilidad": 27.0, "score_limpieza": 17.0, "score_clima": 5.0, "valido_para_score": true}
+    ]
+  },
+  {
+    "lote_id": "INTA_PIVOTE_002",
+    "fecha": "2026-03-15",
+    "ndvi_promedio": 0.42,
+    "gdd_acumulados": 680.5,
+    "contenido_tecnico": "AgroIA INTA_PIVOTE_002 | SOJA | 33.21 ha\nScore consolidado: 42/100\nComponentes: Vigor 18.7/40 | Estabilidad 10.0/30 | Limpieza 8.3/20 | Clima 5.0/10\nCV espacial: 0.42 | Zonificacion: Activa\n\nHistorial por campana:\n  2021: NDVI critico 0.38 | Estres termico 95h | Score 32/100\n  2022: NDVI critico 0.45 | Estres termico 82h | Score 45/100\n  2023: NDVI critico 0.35 | Estres termico 110h | Score 28/100\n  2024: NDVI critico 0.50 | Estres termico 70h | Score 52/100\n  2025: NDVI critico 0.40 | Estres termico 88h | Score 38/100\n  2026: NDVI critico 0.42 | Estres termico 75h | Score 42/100",
+    "metadata": {
+      "cultivo": "soja",
+      "superficie_ha": 33.21,
+      "score_total": 42,
+      "score_desglose": {
+        "vigor": 18.7,
+        "estabilidad": 10.0,
+        "limpieza": 8.3,
+        "clima": 5.0
+      },
+      "cv_espacial": 0.42,
+      "zonificacion_activa": true,
+      "puntos_zona_c": 45,
+      "version_agroia": "2.4.0",
+      "localidad": "Tandil"
+    },
+    "historial_anos": [
+      {"anio": 2021, "cultivo": "soja", "ndvi_critico": 0.380, "horas_calor": 95.0, "score_total": 32, "score_vigor": 16.9, "score_estabilidad": 8.0, "score_limpieza": 7.1, "score_clima": 0.0, "valido_para_score": true},
+      {"anio": 2022, "cultivo": "soja", "ndvi_critico": 0.450, "horas_calor": 82.0, "score_total": 45, "score_vigor": 20.0, "score_estabilidad": 12.0, "score_limpieza": 8.0, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2023, "cultivo": "soja", "ndvi_critico": 0.350, "horas_calor": 110.0, "score_total": 28, "score_vigor": 15.6, "score_estabilidad": 6.5, "score_limpieza": 5.9, "score_clima": 0.0, "valido_para_score": true},
+      {"anio": 2024, "cultivo": "soja", "ndvi_critico": 0.500, "horas_calor": 70.0, "score_total": 52, "score_vigor": 22.2, "score_estabilidad": 14.0, "score_limpieza": 10.8, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2025, "cultivo": "soja", "ndvi_critico": 0.400, "horas_calor": 88.0, "score_total": 38, "score_vigor": 17.8, "score_estabilidad": 10.0, "score_limpieza": 7.2, "score_clima": 3.0, "valido_para_score": true},
+      {"anio": 2026, "cultivo": "soja", "ndvi_critico": 0.420, "horas_calor": 75.0, "score_total": 42, "score_vigor": 18.7, "score_estabilidad": 10.0, "score_limpieza": 8.3, "score_clima": 5.0, "valido_para_score": true}
+    ]
+  },
+  {
+    "lote_id": "INTA_PIVOTE_003",
+    "fecha": "2026-03-15",
+    "ndvi_promedio": 0.65,
+    "gdd_acumulados": 385.2,
+    "contenido_tecnico": "AgroIA INTA_PIVOTE_003 | TRIGO | 39.63 ha\nScore consolidado: 67/100\nComponentes: Vigor 28.9/40 | Estabilidad 20.0/30 | Limpieza 13.1/20 | Clima 5.0/10\nCV espacial: 0.21 | Zonificacion: Activa\n\nHistorial por campana:\n  2021: NDVI critico 0.58 | Estres termico 35h | Score 58/100\n  2022: NDVI critico 0.70 | Estres termico 25h | Score 75/100\n  2023: NDVI critico 0.62 | Estres termico 40h | Score 62/100\n  2024: NDVI critico 0.68 | Estres termico 28h | Score 72/100\n  2025: NDVI critico 0.55 | Estres termico 48h | Score 52/100\n  2026: NDVI critico 0.65 | Estres termico 32h | Score 67/100",
+    "metadata": {
+      "cultivo": "trigo",
+      "superficie_ha": 39.63,
+      "score_total": 67,
+      "score_desglose": {
+        "vigor": 28.9,
+        "estabilidad": 20.0,
+        "limpieza": 13.1,
+        "clima": 5.0
+      },
+      "cv_espacial": 0.21,
+      "zonificacion_activa": true,
+      "puntos_zona_c": 18,
+      "version_agroia": "2.4.0",
+      "localidad": "Balcarce"
+    },
+    "historial_anos": [
+      {"anio": 2021, "cultivo": "trigo", "ndvi_critico": 0.580, "horas_calor": 35.0, "score_total": 58, "score_vigor": 25.8, "score_estabilidad": 17.0, "score_limpieza": 11.2, "score_clima": 4.0, "valido_para_score": true},
+      {"anio": 2022, "cultivo": "trigo", "ndvi_critico": 0.700, "horas_calor": 25.0, "score_total": 75, "score_vigor": 31.1, "score_estabilidad": 24.0, "score_limpieza": 14.9, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2023, "cultivo": "trigo", "ndvi_critico": 0.620, "horas_calor": 40.0, "score_total": 62, "score_vigor": 27.6, "score_estabilidad": 18.0, "score_limpieza": 12.4, "score_clima": 4.0, "valido_para_score": true},
+      {"anio": 2024, "cultivo": "trigo", "ndvi_critico": 0.680, "horas_calor": 28.0, "score_total": 72, "score_vigor": 30.2, "score_estabilidad": 22.0, "score_limpieza": 14.8, "score_clima": 5.0, "valido_para_score": true},
+      {"anio": 2025, "cultivo": "trigo", "ndvi_critico": 0.550, "horas_calor": 48.0, "score_total": 52, "score_vigor": 24.4, "score_estabilidad": 14.0, "score_limpieza": 9.6, "score_clima": 4.0, "valido_para_score": true},
+      {"anio": 2026, "cultivo": "trigo", "ndvi_critico": 0.650, "horas_calor": 32.0, "score_total": 67, "score_vigor": 28.9, "score_estabilidad": 20.0, "score_limpieza": 13.1, "score_clima": 5.0, "valido_para_score": true}
+    ]
+  }
+]

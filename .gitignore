@@ -1,0 +1,55 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Entornos virtuales ─────────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ── CREDENCIALES Y SECRETOS — NUNCA commitear ─────────────────────────────────
+config/.env
+*.env
+.env.*
+config/config.env
+secrets.json
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/*.log
+*.log
+
+# ── Datos sensibles / voluminosos ─────────────────────────────────────────────
+data/exports/
+*.zip
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Sistema operativo ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Build / dist ──────────────────────────────────────────────────────────────
+dist/
+build/
+*.egg-info/
+
+# ── Claude / Agents (herramientas locales, no código del proyecto) ────────────
+.agents/
+.claude/
+skills-lock.json
+
+# ── Modelos pesados ──────────────────────────────────────────────────────────
+*.pth
+*.pt
+*.onnx
+
+# ── Docker volumes ───────────────────────────────────────────────────────────
+logs/

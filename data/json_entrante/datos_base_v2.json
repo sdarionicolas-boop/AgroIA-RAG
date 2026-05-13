@@ -1,0 +1,123 @@
+[
+  {
+    "lote_id": "Establecimiento_Demo_2026",
+    "fecha": "2026-03-15",
+    "ndvi_promedio": 0.8483,
+    "gdd_acumulados": 949.5,
+    "contenido_tecnico": "AgroIA ESTABLECIMIENTO_DEMO_2026 | MAIZ | 160.74 ha\nScore consolidado: 28/100\nComponentes: Vigor 12.3/40 | Estabilidad 4.3/30 | Limpieza 11.7/20 | Clima 0.0/10\nCV espacial: 0.377 | Zonificación: Activa\n\nHistorial por campaña:\n  2021: NDVI crítico 0.212 | Estrés térmico 79.5h | Score 28/100\n  2022: NDVI crítico 0.213 | Estrés térmico 198.7h | Score 28/100\n  2023: NDVI crítico 0.216 | Estrés térmico 249.0h | Score 28/100\n  2024: NDVI crítico 0.222 | Estrés térmico 109.9h | Score 28/100\n  2025: NDVI crítico 0.241 | Estrés térmico 217.0h | Score 28/100\n  2026: NDVI crítico 0.276 | Estrés térmico 95.4h | Score 28/100",
+    "metadata": {
+      "cultivo": "maiz",
+      "superficie_ha": 160.74,
+      "score_total": 28,
+      "score_desglose": {
+        "vigor": 12.3,
+        "estabilidad": 4.3,
+        "limpieza": 11.7,
+        "clima": 0.0
+      },
+      "cv_espacial": 0.377,
+      "zonificacion_activa": true,
+      "puntos_zona_c": 0,
+      "version_agroia": "2.4.0",
+      "convertido_desde": "v1_monitoreo_mensual"
+    },
+    "historial_años": [
+      {
+        "anio": 2021,
+        "cultivo": "maiz",
+        "ndvi_critico": 0.2119,
+        "horas_calor": 79.5,
+        "score_total": 28,
+        "score_vigor": 12.3,
+        "score_estabilidad": 4.3,
+        "score_limpieza": 11.7,
+        "score_clima": 0.0,
+        "valido_para_score": true,
+        "superficie_ha": 160.74,
+        "cv_espacial": 0.377,
+        "zonificacion_activa": true,
+        "puntos_zona_c": 0
+      },
+      {
+        "anio": 2022,
+        "cultivo": "maiz",
+        "ndvi_critico": 0.213,
+        "horas_calor": 198.7,
+        "score_total": 28,
+        "score_vigor": 12.3,
+        "score_estabilidad": 4.3,
+        "score_limpieza": 11.7,
+        "score_clima": 0.0,
+        "valido_para_score": true,
+        "superficie_ha": 160.74,
+        "cv_espacial": 0.377,
+        "zonificacion_activa": true,
+        "puntos_zona_c": 0
+      },
+      {
+        "anio": 2023,
+        "cultivo": "maiz",
+        "ndvi_critico": 0.2156,
+        "horas_calor": 249.0,
+        "score_total": 28,
+        "score_vigor": 12.3,
+        "score_estabilidad": 4.3,
+        "score_limpieza": 11.7,
+        "score_clima": 0.0,
+        "valido_para_score": true,
+        "superficie_ha": 160.74,
+        "cv_espacial": 0.377,
+        "zonificacion_activa": true,
+        "puntos_zona_c": 0
+      },
+      {
+        "anio": 2024,
+        "cultivo": "maiz",
+        "ndvi_critico": 0.2221,
+        "horas_calor": 109.9,
+        "score_total": 28,
+        "score_vigor": 12.3,
+        "score_estabilidad": 4.3,
+        "score_limpieza": 11.7,
+        "score_clima": 0.0,
+        "valido_para_score": true,
+        "superficie_ha": 160.74,
+        "cv_espacial": 0.377,
+        "zonificacion_activa": true,
+        "puntos_zona_c": 0
+      },
+      {
+        "anio": 2025,
+        "cultivo": "maiz",
+        "ndvi_critico": 0.2412,
+        "horas_calor": 217.0,
+        "score_total": 28,
+        "score_vigor": 12.3,
+        "score_estabilidad": 4.3,
+        "score_limpieza": 11.7,
+        "score_clima": 0.0,
+        "valido_para_score": true,
+        "superficie_ha": 160.74,
+        "cv_espacial": 0.377,
+        "zonificacion_activa": true,
+        "puntos_zona_c": 0
+      },
+      {
+        "anio": 2026,
+        "cultivo": "maiz",
+        "ndvi_critico": 0.2759,
+        "horas_calor": 95.4,
+        "score_total": 28,
+        "score_vigor": 12.3,
+        "score_estabilidad": 4.3,
+        "score_limpieza": 11.7,
+        "score_clima": 0.0,
+        "valido_para_score": true,
+        "superficie_ha": 160.74,
+        "cv_espacial": 0.377,
+        "zonificacion_activa": true,
+        "puntos_zona_c": 0
+      }
+    ]
+  }
+]
