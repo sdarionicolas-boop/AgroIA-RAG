@@ -70,4 +70,9 @@ El sistema ha sido validado contra datasets reales de **TAYPE Siniestros** (313 
 ## 📞 Contacto
 **Darío Nicolás** - [LinkedIn](https://www.linkedin.com/in/tu-perfil/) | [TAIKAI](https://taikai.network/es/darinic97)
 
+## ⚖️ Licencia
+Este proyecto está bajo la Licencia **Apache 2.0**. Consulta el archivo [LICENSE](./LICENSE) para más detalles.
+
+© 2026 Darío Nicolás Sánchez Leguizamón.
+
 *Desarrollado para el Hackathon COPERNICUS LAC 2026.*
