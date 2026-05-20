@@ -145,7 +145,7 @@ Total: 454
 
 Estadísticas (solo OK):
 ├─ SAM score promedio: 0.962
-├─ Error % promedio: 9.8%
+├─ Error % promedio: 8.5%
 ├─ Rango de áreas: 30-157 ha ✅
 └─ Todas las métricas presentes ✅
 ```

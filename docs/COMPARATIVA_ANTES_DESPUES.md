@@ -166,7 +166,7 @@ Total procesado: 454
 │
 └─ Guardado en GeoJSON: 340 (SOLO VÁLIDOS)
    ├─ SAM score promedio: 0.96
-   ├─ Error % promedio: 9.8%
+   ├─ Error % promedio: 8.5%
    └─ Estados documentados en CSV
 
 RESULTADO: GeoJSON limpio, solo lo validado
