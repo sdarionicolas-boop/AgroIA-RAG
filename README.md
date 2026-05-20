@@ -2,7 +2,7 @@
 
 > **"Un punto GPS. Un Score Agronómico. Decisiones basadas en datos en 60 segundos."**
 
-[![Hackathon](https://img.shields.io/badge/Hackathon-CopernicusLAC%20%233-blue)](https://taikai.network/en/copernicus/hackathons/copernicus-hackathon-argentina/projects/agroia-risk-score-siniestros-para-agricultura-extensiva)
+[![Hackathon](https://img.shields.io/badge/Hackathon-CopernicusLAC%20%233-blue)](https://taikai.network/copernicuslac-panama/hackathons/seguridad-alimentaria-2026/projects/cmnjc68qc03xa7d3bqrr8td76/idea)
 [![Docker](https://img.shields.io/badge/Docker-Ready-green)](./docker-compose.yml)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen)](./tests/test_agro_math.py)
 
@@ -31,8 +31,8 @@ Para levantar todo el ecosistema:
 
 ```bash
 # 1. Clonar el repositorio y configurar el entorno
-git clone https://github.com/tu-usuario/agroia-rag.git
-cd agroia-rag
+git clone https://github.com/sdarionicolas-boop/AgroIA-RAG.git
+cd AgroIA-RAG
 cp config/.env.example config/.env # Ajustar con tus credenciales
 
 # 2. Levantar la base de datos (PostgreSQL + pgvector)
@@ -78,7 +78,7 @@ El sistema ha sido validado contra datasets reales de **TAYPE Siniestros** (313 
 ---
 
 ## 📞 Contacto
-**Darío Nicolás** - [LinkedIn](https://www.linkedin.com/in/tu-perfil/) | [TAIKAI](https://taikai.network/es/darinic97)
+**Darío Nicolás** - [LinkedIn](https://www.linkedin.com/in/darionicolas/) | [TAIKAI](https://taikai.network/es/darinic97)
 
 ## ⚖️ Licencia
 Este proyecto está bajo la Licencia **Apache 2.0**. Consulta el archivo [LICENSE](./LICENSE) para más detalles.
