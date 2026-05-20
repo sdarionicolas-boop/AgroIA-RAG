@@ -50,6 +50,12 @@ python start.py
 
 ---
 
+## 📖 Documentación completa
+Para guías detalladas, referencias de API y arquitectura del sistema, visita:
+[https://mintlify.wiki/sdarionicolas-boop/AgroIA-RAG/introduction](https://mintlify.wiki/sdarionicolas-boop/AgroIA-RAG/introduction)
+
+---
+
 ## 🏗️ Arquitectura Técnica
 
 - **Backend**: FastAPI + Python 3.10.
