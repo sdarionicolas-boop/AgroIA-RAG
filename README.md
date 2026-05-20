@@ -19,7 +19,7 @@ En Latinoamérica, la falta de un sistema público de identificación de parcela
 
 ## 🚀 Impacto Real
 - ⏱️ **60 segundos** de procesamiento total vs **30 min** manual.
-- 🎯 **75% de precisión** en delineación automática (validado con INTA Balcarce).
+- 🎯 **Hit Rate de hasta 85%** en delineación automática (validado con datasets de TAYPE e INTA).
 - 📉 **Detección de Anomalías**: Uso de `IsolationForest` para filtrar fallas satelitales (nubes/errores).
 - 🌍 **Escalabilidad**: Listo para procesar miles de lotes de forma asíncrona.
 
@@ -27,7 +27,7 @@ En Latinoamérica, la falta de un sistema público de identificación de parcela
 
 ## 🚀 Quick Start (Launcher Unificado)
 
-Para levantar todo el ecosistema (Postgres + API + Dashboard + Bot):
+Para levantar todo el ecosistema:
 
 ```bash
 # 1. Clonar el repositorio y configurar el entorno
@@ -36,7 +36,8 @@ cd agroia-rag
 cp config/.env.example config/.env # Ajustar con tus credenciales
 
 # 2. Levantar la base de datos (PostgreSQL + pgvector)
-docker-compose up -d db
+# Si no tienes Docker Compose instalado, usa docker run
+docker run -d --name postgres-agri -p 5432:5432 -e POSTGRES_PASSWORD=postgres ankane/pgvector
 
 # 3. Verificar y arrancar el sistema
 python start.py --check
@@ -66,7 +67,7 @@ python start.py
 El sistema ha sido validado contra datasets reales de **TAYPE Siniestros** (313 puntos) e **INTA Balcarce** (454 puntos):
 - **Hit Rate**: 85.6% (TAYPE) / 74.9% (INTA).
 - **SAM Score promedio**: 0.962.
-- **Error de área promedio**: 9.8% vs referencia manual.
+- **Error de área promedio**: 8.5% (INTA) vs referencia manual.
 
 ---
 
