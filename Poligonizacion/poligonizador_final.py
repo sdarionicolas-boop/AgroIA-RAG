@@ -235,9 +235,16 @@ class SegmentadorSAM:
     def cargar(self):
         if self.predictor: return True
         cp = self.config['checkpoint']
+        
+        # Intentar encontrar el checkpoint en el root si no está en el CWD
         if not os.path.exists(cp):
-            print(f"📥 Descargando SAM ({self.config['model_type']})...")
-            os.system(f'wget -q https://dl.fbaipublicfiles.com/segment_anything/{cp}')
+            root_dir = Path(__file__).resolve().parent.parent
+            cp_root = root_dir / cp
+            if cp_root.exists():
+                cp = str(cp_root)
+            else:
+                print(f"📥 Descargando SAM ({self.config['model_type']})...")
+                os.system(f'wget -q https://dl.fbaipublicfiles.com/segment_anything/{cp}')
         
         try:
             sam = sam_model_registry[self.config['model_type']](checkpoint=cp)

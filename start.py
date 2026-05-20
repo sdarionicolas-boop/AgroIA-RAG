@@ -84,7 +84,8 @@ def check_prerequisites() -> bool:
 
     # 1. Dependencias Python
     deps = ["fastapi", "uvicorn", "streamlit", "psycopg2", "ollama",
-            "telegram", "pydantic_settings", "pandas", "matplotlib", "numpy"]
+            "telegram", "pydantic_settings", "pandas", "matplotlib", "numpy",
+            "segment_anything", "geopandas", "shapely"]
     faltantes = []
     for dep in deps:
         if importlib.util.find_spec(dep) is None:

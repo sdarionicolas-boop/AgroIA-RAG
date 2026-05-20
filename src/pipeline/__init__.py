@@ -1,9 +1,34 @@
 # src/pipeline/__init__.py
 import os
+import sys
 import json
 import geopandas as gpd
 from datetime import datetime
 import ee
+
+# Fix Unicode output on Windows cp1252 terminals
+try:
+    if sys.stdout and hasattr(sys.stdout, 'encoding') and sys.stdout.encoding and sys.stdout.encoding.lower().startswith('cp'):
+        sys.stdout.reconfigure(errors='replace')
+        sys.stderr.reconfigure(errors='replace')
+except Exception:
+    pass
+
+import builtins
+_original_print = builtins.print
+def _safe_print(*args, **kwargs):
+    """Print wrapper that never crashes on encoding errors."""
+    try:
+        _original_print(*args, **kwargs)
+    except (UnicodeEncodeError, OSError):
+        # Fallback: strip non-ASCII and retry
+        try:
+            safe_args = [str(a).encode('ascii', 'replace').decode('ascii') for a in args]
+            _original_print(*safe_args, **kwargs)
+        except Exception:
+            pass
+print = _safe_print
+
 from src.utils.config import settings
 from .gee_extractor import (
     init_gee, get_gee_ndvi, get_gee_ndvi_ventana,
@@ -123,7 +148,8 @@ def _analyze_one_polygon(lote_gdf, lote_id, cultivo, years, epsg_utm, push_to_ra
             score_clima=score_act['clima'], cv_espacial=cv if cv else 0.0,
             zona_activa=(zonas_gdf is not None),
             puntos_zona_c=len(zonas_gdf[zonas_gdf['zona'] == 'C']) if zonas_gdf is not None else 0,
-            historial_full=historial_full
+            historial_full=historial_full,
+            centroide=[centroide.y, centroide.x]
         )
         enviar_al_rag("http://localhost:8000", settings.ingesta_secret_key, payload)
 
@@ -188,9 +214,31 @@ def run_batch_from_geojson(geojson_path, cultivo_default="maiz", years=None,
 
     geojson_path = os.path.normpath(geojson_path)
     if not os.path.exists(geojson_path):
-        raise FileNotFoundError(f"GeoJSON no encontrado: {geojson_path}")
+        raise FileNotFoundError(f"Archivo no encontrado: {geojson_path}")
 
-    gdf = gpd.read_file(geojson_path)
+    # Soporte para archivos comprimidos (SHP en ZIP o KMZ)
+    read_path = geojson_path
+    if geojson_path.lower().endswith('.zip') or geojson_path.lower().endswith('.kmz'):
+        read_path = f"zip://{geojson_path}"
+
+    try:
+        gdf = gpd.read_file(read_path)
+    except Exception as e:
+        if geojson_path.lower().endswith(('.kml', '.kmz')):
+            print(f"  ⚠ Driver de KML no encontrado. Usando parser manual de AgroIA...")
+            from src.utils.kml_fallback import parse_kml_manual
+            manual_data = parse_kml_manual(geojson_path)
+            if manual_data:
+                # Escribir a un temporal como GeoJSON para que GeoPandas lo lea fácil
+                tmp_json = f"{geojson_path}_tmp.json"
+                with open(tmp_json, 'w') as f:
+                    json.dump(manual_data, f)
+                gdf = gpd.read_file(tmp_json)
+                os.remove(tmp_json)
+            else:
+                raise ValueError(f"No se pudo parsear el archivo KML/KMZ de forma manual.")
+        else:
+            raise e
     if gdf.crs is None or gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs("EPSG:4326")
 

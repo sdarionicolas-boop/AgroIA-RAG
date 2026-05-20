@@ -1,8 +1,24 @@
+import sys
 import ee
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 from sklearn.cluster import KMeans
+
+# Fix Unicode output on Windows cp1252 terminals
+try:
+    if sys.stdout and hasattr(sys.stdout, 'encoding') and sys.stdout.encoding and sys.stdout.encoding.lower().startswith('cp'):
+        sys.stdout.reconfigure(errors='replace')
+        sys.stderr.reconfigure(errors='replace')
+except Exception:
+    pass
+
+def _safe_print(msg):
+    """Print that never raises, even on broken stdout."""
+    try:
+        print(msg)
+    except Exception:
+        pass
 
 def init_gee(project_id=None):
     """Inicializa Google Earth Engine."""
@@ -11,15 +27,15 @@ def init_gee(project_id=None):
             ee.Initialize(project=project_id)
         else:
             ee.Initialize()
-        print("✓ GEE inicializado correctamente.")
-    except Exception:
-        print("→ Autenticando GEE por primera vez...")
+        _safe_print("[OK] GEE inicializado correctamente.")
+    except ee.EEException:
+        _safe_print("[...] Autenticando GEE por primera vez...")
         ee.Authenticate()
         if project_id:
             ee.Initialize(project=project_id)
         else:
             ee.Initialize()
-        print("✓ GEE autenticado e inicializado.")
+        _safe_print("[OK] GEE autenticado e inicializado.")
 
 def get_gee_ndvi(geom_ee, year, month):
     """Obtiene el NDVI mediano de un mes para una geometría dada."""

@@ -569,8 +569,10 @@ def generar_mapa_offline(lote_gdf, cultivo="maiz", score=None, conf=None, zonas_
         tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
         attr='Google Satellite', name='Satelite', overlay=False
     ).add_to(m)
-    
-    folium.GeoJson(lote_gdf, name="Lote", style_function=lambda x: {'fillColor': '#2D6A4F', 'color': 'white', 'weight': 2, 'fillOpacity': 0.2}).add_to(m)
+
+    # Limpiar columnas no serializables (Timestamp, etc.) antes de pasar a Folium
+    gdf_clean = lote_gdf[['geometry']].copy()
+    folium.GeoJson(gdf_clean, name="Lote", style_function=lambda x: {'fillColor': '#2D6A4F', 'color': 'white', 'weight': 2, 'fillOpacity': 0.2}).add_to(m)
     
     if zonas_gdf is not None:
         for zona in ['A', 'B', 'C']:

@@ -1,13 +1,19 @@
+import sys
 import requests
 import json
 from .agro_math import CONFIG
+
+# Fix Unicode output on Windows cp1252 terminals
+if sys.stdout.encoding and sys.stdout.encoding.lower().startswith('cp'):
+    sys.stdout.reconfigure(errors='replace')
+    sys.stderr.reconfigure(errors='replace')
 
 def construir_payload_v2(lote_id, cultivo, superficie_ha, fecha_analisis,
                           ndvi_critico, horas_calor,
                           score_total, score_vigor, score_estabilidad,
                           score_limpieza, score_clima,
                           cv_espacial, zona_activa, puntos_zona_c,
-                          historial_full=None, version_agroia='2.5'):
+                          historial_full=None, version_agroia='2.5', centroide=None):
     """Construye el JSON para la API del RAG."""
     
     # Formatear historial completo si viene
@@ -67,6 +73,7 @@ def construir_payload_v2(lote_id, cultivo, superficie_ha, fecha_analisis,
             'zonificacion_activa': bool(zona_activa),
             'puntos_zona_c':       int(puntos_zona_c),
             'version_agroia':      version_agroia,
+            'centroide':           centroide,
         },
         'historial_anos': filas,
     }

@@ -36,7 +36,62 @@ CONFIG = {
         "ndvi_min":      0.20,
         "ndvi_max":      0.88,
     },
+    "girasol": {
+        "tbase":         6,
+        "umbral_calor":  35,
+        "umbral_clima":  40,
+        "mes_critico":   1,
+        "pesos": {10: 0.2, 11: 0.5, 12: 1.0, 1: 1.0, 2: 0.7, 3: 0.3},
+        "color":         "#E9C46A",
+        "biblio":        "INTA Balcarce / ASAGIR",
+        "ndvi_min":      0.22,
+        "ndvi_max":      0.85,
+    },
 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EVENTUALIDADES — Tabla fenológica y factor conservador
+# ─────────────────────────────────────────────────────────────────────────────
+TABLA_FENOLOGICA = {
+    ('maiz',    1): ('Floracion / llenado de grano (R1-R4)',   1.0),
+    ('maiz',    2): ('Llenado / madurez fisiologica (R4-R6)',  0.9),
+    ('maiz',    3): ('Madurez / cosecha (R6+)',                0.2),
+    ('maiz',    4): ('Post-cosecha / barbecho',                0.1),
+    ('maiz',   11): ('Implantacion / V1-V3',                   0.3),
+    ('maiz',   12): ('Vegetativo activo (V4-V10)',              0.6),
+    ('soja',    1): ('Floracion / llenado (R1-R5)',             1.0),
+    ('soja',    2): ('Llenado de grano / madurez (R5-R7)',      0.8),
+    ('soja',    3): ('Madurez / cosecha (R8)',                  0.2),
+    ('soja',   11): ('Implantacion / VC-V2',                   0.3),
+    ('soja',   12): ('Vegetativo (V3-V6)',                     0.6),
+    ('trigo',   7): ('Macollaje temprano (Z21-Z29)',            0.2),
+    ('trigo',   8): ('Encanazon (Z30-Z39)',                    0.5),
+    ('trigo',   9): ('Espigazon / antesis (Z55-Z69)',          1.0),
+    ('trigo',  10): ('Antesis / llenado de grano (critico)',   1.0),
+    ('trigo',  11): ('Madurez / cosecha',                      0.3),
+    ('trigo',  12): ('Post-cosecha',                           0.1),
+    ('cebada',  7): ('Macollaje temprano',                     0.2),
+    ('cebada',  8): ('Encanazon',                              0.5),
+    ('cebada',  9): ('Antesis (critico)',                      1.0),
+    ('cebada', 10): ('Llenado de grano (critico)',             1.0),
+    ('cebada', 11): ('Madurez / cosecha',                      0.3),
+    ('girasol', 1): ('Floracion / llenado (R5-R7)',            1.0),
+    ('girasol', 2): ('Madurez / cosecha (R8-R9)',              0.3),
+    ('girasol',12): ('Vegetativo (V4-V10)',                    0.5),
+}
+
+FACTOR_CONSERVADOR = 0.92
+
+def get_peso_fenologico(cultivo, mes):
+    """Retorna (descripcion_etapa, peso) para un cultivo y mes de evento."""
+    cultivo_norm = (cultivo.lower().strip()
+                    .replace('maiz 2da', 'maiz').replace('maiz 1ra', 'maiz')
+                    .replace('soja 1ra', 'soja').replace('soja 2da', 'soja'))
+    key = (cultivo_norm, int(mes))
+    if key in TABLA_FENOLOGICA:
+        return TABLA_FENOLOGICA[key]
+    return (f'Etapa no especificada ({cultivo}, mes {mes})', 0.5)
+
 
 def validar_ndvi(ndvi_val, cultivo, year, mes):
     """Valida que el NDVI esté dentro de rangos plausibles."""

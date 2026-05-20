@@ -13,6 +13,27 @@ import ollama
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import folium
+from streamlit_folium import st_folium
+import streamlit.components.v1 as components
+import tempfile
+import os
+import json
+
+# Habilitar soporte para KML/KMZ
+try:
+    import fiona
+    fiona.drvsupport.supported_drivers['KML'] = 'rw'
+    fiona.drvsupport.supported_drivers['LIBKML'] = 'rw'
+except ImportError:
+    fiona = None
+except:
+    pass
+
+# Importar el pipeline real
+from src.pipeline import run_full_analysis, run_batch_from_geojson
+# Importar el poligonizador (necesitaremos inyectar el path si no está)
+from Poligonizacion.poligonizador_final import AgroIAPipeline
 
 # Evitar advertencias de downcasting de pandas
 pd.set_option('future.no_silent_downcasting', True)
@@ -47,11 +68,11 @@ def get_db_connection():
     )
 
 def get_distinct_lotes():
-    """Lista de lotes únicos cargados."""
+    """Lista de lotes únicos cargados con sus coordenadas."""
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT lote_id, cultivo, superficie_ha, score_total, updated_at, cv_espacial
+                SELECT lote_id, cultivo, superficie_ha, score_total, updated_at, cv_espacial, metadata
                 FROM informes_lotes ORDER BY lote_id
             """)
             return cur.fetchall()
@@ -94,6 +115,13 @@ def get_historial_lote(lote_id: str) -> pd.DataFrame | None:
                 "limpieza", "clima", "valido", "zona_activa", "zona_c_pts"
             ])
             return df.rename(columns={"anio": "año"})  # ← Renombrar para UI
+
+def reset_database():
+    """Borra todos los lotes e historial de la base de datos."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("TRUNCATE TABLE lote_historial, informes_lotes RESTART IDENTITY;")
+        conn.commit()
 
 # ============================================================================
 # COMPARACIÓN DE LOTES
@@ -251,15 +279,152 @@ st.title("🌾 AgroIA — Asistente de Diagnóstico Agronómico")
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
+    # Logo del proyecto
+    logo_path = Path(__file__).resolve().parent / "utils" / "logo_agroia.png"
+    if logo_path.exists():
+        st.image(str(logo_path), use_container_width=True)
+    else:
+        st.markdown("### 🌾 AgroIA")
+
     st.markdown("### Configuración")
     lotes_info = get_distinct_lotes()
-    if not lotes_info:
-        st.warning("📭 No hay lotes cargados en la base de datos.")
-        st.info("Corré el pipeline desde Colab y activá ENVIAR_AL_RAG = True")
-        st.stop()
-    lote_ids = [r[0] for r in lotes_info]
-    modo = st.radio("Modo de análisis: ", ["🔍 Inspeccionar un Lote", "⚖️ Comparar Lote A vs B", "🏆 Ranking Global"], index=0)
+    lote_ids = [r[0] for r in lotes_info] if lotes_info else []
+    
+    modo = st.radio("Modo de análisis: ", 
+                    ["🗺️ Mapa de Lotes", "🔍 Inspeccionar un Lote", "⚖️ Comparar Lote A vs B", "🏆 Ranking Global"], 
+                    index=0)
     st.divider()
+
+    if st.button("🗑️ Limpiar Base de Datos", use_container_width=True):
+        reset_database()
+        st.success("Base de datos reiniciada.")
+        st.rerun()
+
+    st.divider()
+
+    # ── CARGA DE ARCHIVOS ────────────────────────────────────────────────────
+    st.markdown("### 📂 Carga y Procesamiento")
+    tipo_carga = st.radio("Tipo de archivo:", ["CSV/XLSX (puntos GPS)", "Polígonos (GeoJSON, SHP, KML)"], horizontal=True, label_visibility="collapsed")
+
+    cultivo_default = "maiz"
+    if tipo_carga == "CSV/XLSX (puntos GPS)":
+        uploaded_file = st.file_uploader("Subir CSV con puntos GPS", type=["csv", "xlsx"])
+    else:
+        uploaded_file = st.file_uploader("Subir Polígonos", type=["geojson", "json", "shp", "kml", "kmz", "zip"])
+        cultivo_default = st.selectbox("Cultivo para estos lotes:", ["maiz", "soja", "trigo", "girasol", "cebada", "sorgo", "mani"])
+
+    if uploaded_file is not None:
+        if st.button("🚀 Iniciar Procesamiento"):
+            # Guardar archivo temporalmente
+            suffix = Path(uploaded_file.name).suffix
+            if suffix.lower() in [".zip", ".kmz", ".shp", ".kml"]:
+                tmp_dir = Path(tempfile.gettempdir())
+                tmp_path = str(tmp_dir / uploaded_file.name)
+                with open(tmp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+            else:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    tmp_path = tmp_file.name
+
+            try:
+                import time
+                with st.status("🚜 Procesando Lotes...", expanded=True) as status:
+
+                    if tipo_carga == "CSV/XLSX (puntos GPS)":
+                        st.write("📐 Iniciando delineación de parcelas...")
+                        df_input = pd.read_excel(tmp_path) if tmp_path.endswith('.xlsx') else pd.read_csv(tmp_path)
+                        
+                        # Mapeo de columnas
+                        lat_col = next((c for c in df_input.columns if c.lower() in ['lat', 'latitude', 'latitud']), None)
+                        lon_col = next((c for c in df_input.columns if c.lower() in ['lon', 'longitude', 'longitud', 'lng']), None)
+                        id_col = next((c for c in df_input.columns if c.lower() in ['id', 'lote_id', 'nombre']), None)
+                        
+                        if not lat_col or not lon_col:
+                            st.error("No se encontraron columnas de Latitud/Longitud.")
+                            st.stop()
+
+                        from shapely.geometry import Point, mapping
+                        sam_path = _root / "sam_vit_b_01ec64.pth"
+                        sam_available = sam_path.exists()
+                        features = []
+
+                        if sam_available:
+                            st.write("🧠 Modelo SAM detectado. Usando delineación inteligente...")
+                            poly_pipe = AgroIAPipeline()
+                            poly_pipe.cargar_datos(tmp_path)
+                            # Inyectar el cultivo seleccionado a los datos cargados si no lo tienen
+                            if poly_pipe.df is not None:
+                                poly_pipe.df['cultivo'] = cultivo_default
+                            out_prefix = os.path.join(tempfile.gettempdir(), f"agroia_st_{int(time.time())}")
+                            poly_pipe.ejecutar(output_prefix=out_prefix)
+                            geojson_path = f"{out_prefix}.geojson"
+                        else:
+                            st.warning("⚠️ Modelo SAM no encontrado. Usando delineación geométrica (buffer)...")
+                            for idx, row in df_input.iterrows():
+                                lid = str(row[id_col]) if id_col else f"LOTE_{idx+1:03d}"
+                                lat, lon = float(row[lat_col]), float(row[lon_col])
+                                st.write(f"  → Procesando {lid}...")
+                                # Buffer de 0.005 grados (~500m) para simular un lote de ~25ha
+                                poly_geom = Point(lon, lat).buffer(0.005).envelope
+                                features.append({
+                                    "type": "Feature",
+                                    "properties": {
+                                        "id": lid,
+                                        "cultivo": str(row.get('cultivo', cultivo_default)).lower(),
+                                        "localidad": str(row.get('localidad', 'Desconocida'))
+                                    },
+                                    "geometry": mapping(poly_geom)
+                                })
+                                time.sleep(0.2)
+                            
+                            out_prefix = os.path.join(tempfile.gettempdir(), f"agroia_st_{int(time.time())}")
+                            geojson_path = f"{out_prefix}.geojson"
+                            with open(geojson_path, 'w') as f:
+                                json.dump({"type": "FeatureCollection", "features": features}, f)
+
+                        if not os.path.exists(geojson_path):
+                            st.error("Error al generar geometría. Revisa los datos de entrada.")
+                            st.stop()
+                    else:
+                        # Flujo directo: GeoJSON cargado → GEE (analisis) → RAG
+                        geojson_path = tmp_path
+                        st.write(f"📂 Archivo {suffix} cargado, saltando delineacion SAM...")
+
+                    st.write("🛰️ Ejecutando analisis satelital y scoring...")
+                    res_batch = run_batch_from_geojson(geojson_path, cultivo_default=cultivo_default, push_to_rag=True)
+
+                    ok_count = sum(1 for r in res_batch if r["status"] == "OK")
+                    fail_count = len(res_batch) - ok_count
+                    status.update(label=f"✅ Procesamiento finalizado: {ok_count} lotes cargados", state="complete", expanded=False)
+
+                if ok_count > 0:
+                    st.success(f"Se procesaron {ok_count} lotes correctamente.")
+                    if fail_count > 0:
+                        with st.expander(f"⚠️ {fail_count} lotes sin datos satelitales"):
+                            for r in res_batch:
+                                if r["status"] != "OK":
+                                    st.write(f"- **{r['lote_id']}**: {r['status']}")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.warning("No se proceso ningun lote con exito.")
+                    with st.expander("🔍 Detalle de errores por lote"):
+                        for r in res_batch:
+                            st.write(f"- **{r['lote_id']}**: {r['status']}")
+                    st.info("💡 Posibles causas: GEE sin autenticar, sin imágenes Sentinel-2 disponibles para las fechas, o conexión a internet inestable.")
+
+            except Exception as e:
+                st.error(f"❌ Error en el proceso: {e}")
+            finally:
+                if os.path.exists(tmp_path): os.remove(tmp_path)
+
+    st.divider()
+
+    if not lotes_info and modo != "🗺️ Mapa de Lotes":
+        st.warning("📭 No hay lotes cargados en la base de datos.")
+        st.info("Subí un archivo CSV para empezar.")
+        st.stop()
     if modo == "🔍 Inspeccionar un Lote":
         lote_a = st.selectbox("Seleccioná el lote", lote_ids)
         ver_historial = st.checkbox("📈 Evolución histórica", value=True)
@@ -277,7 +442,7 @@ with st.sidebar:
             try:
                 # Reutilizamos la lógica de comparar_lotes.py pero adaptada a Streamlit
                 lotes_raw = get_distinct_lotes()
-                df_ranking = pd.DataFrame(lotes_raw, columns=["lote_id", "cultivo", "superficie_ha", "score_total", "updated_at", "cv_espacial"])
+                df_ranking = pd.DataFrame(lotes_raw, columns=["lote_id", "cultivo", "superficie_ha", "score_total", "updated_at", "cv_espacial", "metadata"])
                 
                 output_dir = Path("outputs")
                 output_dir.mkdir(exist_ok=True)
@@ -357,8 +522,51 @@ with st.sidebar:
                 st.error(f"❌ Error al conectar con la API: {e}")
 
 
+# ── Modo: Mapa ───────────────────────────────────────────────────────────────
+if modo == "🗺️ Mapa de Lotes":
+    st.subheader("🗺️ Visualizador Geográfico de la Cartera")
+    st.markdown("Mapa interactivo con la ubicación y estado de salud de todos los lotes analizados.")
+    
+    # Calcular centro promedio de los lotes cargados
+    if lotes_info:
+        coords = []
+        for r in lotes_info:
+            meta = r[6] if isinstance(r[6], dict) else json.loads(r[6] or '{}')
+            c = meta.get("centroide", [])
+            if c: coords.append(c)
+        
+        if coords:
+            lat_c = sum(p[0] for p in coords) / len(coords)
+            lon_c = sum(p[1] for p in coords) / len(coords)
+            start_loc = [lat_c, lon_c]
+            zoom = 12
+        else:
+            start_loc, zoom = [-36.0, -61.0], 6
+    else:
+        start_loc, zoom = [-36.0, -61.0], 6
+
+    m = folium.Map(location=start_loc, zoom_start=zoom, tiles="CartoDB positron")
+    
+    # Añadir marcadores de lotes existentes
+    for r in lotes_info:
+        lid, cult, sup, sc, _, _, raw_meta = r
+        meta = raw_meta if isinstance(raw_meta, dict) else json.loads(raw_meta or '{}')
+        c = meta.get("centroide", [])
+        if c:
+            color = "green" if sc >= 70 else "orange" if sc >= 45 else "red"
+            folium.Marker(
+                location=c,
+                popup=f"<b>Lote:</b> {lid}<br><b>Cultivo:</b> {cult}<br><b>Score:</b> {sc}/100",
+                tooltip=f"{lid} ({sc} pts)",
+                icon=folium.Icon(color=color, icon="leaf")
+            ).add_to(m)
+
+    st_folium(m, height=700, width="100%", key="mapa_full")
+    
+    st.info("💡 Haz clic en los marcadores para ver un resumen rápido. Para un diagnóstico profundo, usa la pestaña 'Inspeccionar un Lote'.")
+
 # ── Modo: Inspeccionar ───────────────────────────────────────────────────────
-if modo == "🔍 Inspeccionar un Lote":
+elif modo == "🔍 Inspeccionar un Lote":
     datos = get_datos_lote(lote_a)
     if not datos:
         st.warning(f"Sin datos para **{lote_a}**. Verificá la ingesta desde Colab.")
@@ -389,6 +597,37 @@ if modo == "🔍 Inspeccionar un Lote":
         st.info(f"🗺️ Zonificación A/B/C activa — **{datos['puntos_zona_c']} puntos críticos** detectados en Zona C")
     else:
         st.success("✅ Lote homogéneo — sin zonas diferenciadas")
+    
+    # ── Visualización de Mapa Detallado ──────────────────────────────────────
+    st.divider()
+    st.subheader("🗺️ Mapa Detallado de Lote")
+    # Los mapas se generan en src/outputs porque la app corre con CWD=src
+    outputs_dir = Path(__file__).resolve().parent / "outputs"
+    mapa_path = outputs_dir / f"Mapa_{lote_a}.html"
+    
+    if mapa_path.exists():
+        with open(mapa_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            components.html(html_content, height=500, scrolling=True)
+        
+        col_down, _ = st.columns([2, 3])
+        with col_down:
+            with open(mapa_path, "rb") as f:
+                st.download_button(
+                    label="🌐 Descargar Mapa Interactivo (HTML)",
+                    data=f,
+                    file_name=f"Mapa_{lote_a}.html",
+                    mime="text/html",
+                    use_container_width=True
+                )
+        st.caption("Mapa interactivo con polígono, satélite y zonificación (si aplica).")
+    else:
+        st.info("💡 No se encontró el mapa detallado offline. Se muestra ubicación general:")
+        if datos.get("centroide"):
+            m_single = folium.Map(location=datos["centroide"], zoom_start=15, tiles='OpenStreetMap')
+            folium.Marker(datos["centroide"], popup=lote_a).add_to(m_single)
+            st_folium(m_single, height=400, width="100%", key=f"map_mini_{lote_a}")
+
     st.divider()
     if df_hist is not None and not df_hist.empty:
         if ver_historial:
@@ -486,7 +725,7 @@ elif modo == "🏆 Ranking Global":
         st.warning("No hay lotes para mostrar.")
         st.stop()
 
-    df_ranking = pd.DataFrame(lotes_raw, columns=["lote_id", "cultivo", "superficie_ha", "score_total", "updated_at", "cv_espacial"])
+    df_ranking = pd.DataFrame(lotes_raw, columns=["lote_id", "cultivo", "superficie_ha", "score_total", "updated_at", "cv_espacial", "metadata"])
     df_ranking = df_ranking.sort_values("score_total", ascending=False)
 
     # Resumen rápido

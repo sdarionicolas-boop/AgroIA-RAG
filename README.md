@@ -25,24 +25,27 @@ En Latinoamérica, la falta de un sistema público de identificación de parcela
 
 ---
 
-## 🛠️ Quick Start (Docker)
+## 🚀 Quick Start (Launcher Unificado)
 
-Para levantar todo el ecosistema (Postgres + API + Dashboard):
+Para levantar todo el ecosistema (Postgres + API + Dashboard + Bot):
 
 ```bash
-# 1. Clonar el repositorio
+# 1. Clonar el repositorio y configurar el entorno
 git clone https://github.com/tu-usuario/agroia-rag.git
 cd agroia-rag
+cp config/.env.example config/.env # Ajustar con tus credenciales
 
-# 2. Configurar el entorno (ajustar .env con tus credenciales de GEE)
-cp config/.env.example config/.env
+# 2. Levantar la base de datos (PostgreSQL + pgvector)
+docker-compose up -d db
 
-# 3. Levantar con Docker Compose
-docker-compose up -d
+# 3. Verificar y arrancar el sistema
+python start.py --check
+python start.py
 ```
 
 - **Dashboard Streamlit**: `http://localhost:8501`
 - **Documentación API**: `http://localhost:8000/docs`
+- **Telegram Bot**: Busca tu bot configurado en `@BotFather`.
 
 ---
 

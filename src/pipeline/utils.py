@@ -1,6 +1,12 @@
+import sys
 import geopandas as gpd
 import warnings
 from shapely.validation import explain_validity
+
+# Fix Unicode output on Windows cp1252 terminals
+if sys.stdout.encoding and sys.stdout.encoding.lower().startswith('cp'):
+    sys.stdout.reconfigure(errors='replace')
+    sys.stderr.reconfigure(errors='replace')
 
 def validar_shapefile(shp_path):
     """Valida el shapefile y extrae información básica."""
