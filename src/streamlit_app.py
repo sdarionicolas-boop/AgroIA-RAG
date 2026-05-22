@@ -11,6 +11,7 @@ import streamlit as st
 import psycopg2
 import ollama
 import pandas as pd
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import folium
@@ -780,13 +781,32 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
 
         try:
             with st.spinner("⏳ Analizando imágenes Sentinel-2 y Baseline histórico..."):
+                # Inicializar GEE
+                from src.pipeline.gee_extractor import init_gee
+                init_gee(project_id=settings.gee_project_id)
+
                 # Cargar geometría
-                if suffix.lower() in ['.kml', '.kmz', '.shp', '.zip']:
-                    read_path = tmp_path
-                    if suffix.lower() in ['.zip', '.kmz']: read_path = f"zip://{tmp_path}"
-                    gdf_ev = gpd.read_file(read_path)
-                else:
-                    gdf_ev = gpd.read_file(tmp_path)
+                try:
+                    if suffix.lower() in ['.kml', '.kmz', '.zip']:
+                        read_path = tmp_path
+                        if suffix.lower() in ['.zip', '.kmz']: read_path = f"zip://{tmp_path}"
+                        gdf_ev = gpd.read_file(read_path)
+                    else:
+                        gdf_ev = gpd.read_file(tmp_path)
+                except Exception as e:
+                    if suffix.lower() in ['.kml', '.kmz']:
+                        st.info("⚠ Driver KML no detectado. Usando parser manual...")
+                        from src.utils.kml_fallback import parse_kml_manual
+                        manual_data = parse_kml_manual(tmp_path)
+                        if manual_data:
+                            tmp_json = f"{tmp_path}_tmp.json"
+                            with open(tmp_json, 'w') as f: json.dump(manual_data, f)
+                            gdf_ev = gpd.read_file(tmp_json)
+                            os.remove(tmp_json)
+                        else:
+                            raise ValueError("No se pudo parsear el archivo KML de forma manual.")
+                    else:
+                        raise e
 
                 geom_ee, coords = cargar_poligono_desde_gdf(gdf_ev)
 
@@ -809,8 +829,29 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                 c3.metric("Confianza Datos", res['confianza'])
                 c4.metric("Etapa Detectada", res['etapa_desc'])
 
-                # ── Mapa Interactivos ───────────────────────────────────────
-                st.subheader("🗺️ Mapa de Intensidad de Daño")
+                # ── Visualizaciones ─────────────────────────────────────────
+                st.subheader("📊 Visualización de Impacto")
+                v_col1, v_col2 = st.columns([1, 1])
+                
+                from src.pipeline.eventualidades import plot_comparativa_ndvi, plot_donut_dano
+                
+                with v_col1:
+                    donut_img = plot_donut_dano(res)
+                    if donut_img:
+                        st.image(donut_img, caption="Distribución de Daño en el Lote", use_container_width=True)
+                
+                with v_col2:
+                    st.markdown(f"**Análisis de Severidad:**")
+                    st.write(f"- 🟡 **Leve:** {res['area_leve']:.1f} ha")
+                    st.write(f"- 🟠 **Moderado:** {res['area_moderada']:.1f} ha")
+                    st.write(f"- 🔴 **Severo:** {res['area_severa']:.1f} ha")
+                    st.info(f"El **{res['area_afectada']/max(res['area_total'],0.1)*100:.1f}%** del lote presenta algún grado de afectación.")
+
+                st.subheader("🛰️ Comparativa Satelital y Mapa de Calor")
+                panel_img = plot_comparativa_ndvi(res)
+                if panel_img:
+                    st.image(panel_img, caption="NDVI Pre-Evento vs Post-Evento vs Severidad", use_container_width=True)
+
                 m_ev = generar_mapa_folium(res)
                 st_folium(m_ev, height=600, width="100%", key="mapa_siniestro")
 
