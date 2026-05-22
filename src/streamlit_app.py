@@ -19,6 +19,7 @@ import streamlit.components.v1 as components
 import tempfile
 import os
 import json
+from datetime import datetime, timedelta
 
 # Habilitar soporte para KML/KMZ
 try:
@@ -50,6 +51,7 @@ from src.rag.core import (
 
 # Importar funciones del comparador
 from src.pipeline.comparative_reporter import plot_ranking_chart, plot_scatter_variability, build_comparative_report
+from src.pipeline.eventualidades import run_eventualidades, generar_mapa_folium, cargar_poligono_desde_gdf
 
 # ================= CONFIGURACIÓN UI =================
 ZONA_COLORS = {"A": "#40916C", "B": "#F4A261", "C": "#D62828"}
@@ -291,7 +293,7 @@ with st.sidebar:
     lote_ids = [r[0] for r in lotes_info] if lotes_info else []
     
     modo = st.radio("Modo de análisis: ", 
-                    ["🗺️ Mapa de Lotes", "🔍 Inspeccionar un Lote", "⚖️ Comparar Lote A vs B", "🏆 Ranking Global"], 
+                    ["🗺️ Mapa de Lotes", "🔍 Inspeccionar un Lote", "⚖️ Comparar Lote A vs B", "🏆 Ranking Global", "🛰️ Siniestros (Eventualidades)"], 
                     index=0)
     st.divider()
 
@@ -421,7 +423,7 @@ with st.sidebar:
 
     st.divider()
 
-    if not lotes_info and modo != "🗺️ Mapa de Lotes":
+    if not lotes_info and modo != "🗺️ Mapa de Lotes" and modo != "🛰️ Siniestros (Eventualidades)":
         st.warning("📭 No hay lotes cargados en la base de datos.")
         st.info("Subí un archivo CSV para empezar.")
         st.stop()
@@ -436,7 +438,7 @@ with st.sidebar:
         with col2:
             otros = [l for l in lote_ids if l != lote_a]
             lote_b = st.selectbox("Lote B", otros if otros else lote_ids, key="cb")
-    else:
+    elif modo == "🏆 Ranking Global":
         st.info("Ranking comparativo de todos los lotes en la base de datos.")
         if st.button("📄 Generar Reporte PDF"):
             try:
@@ -749,3 +751,80 @@ elif modo == "🏆 Ranking Global":
     df_show = df_ranking[["lote_id", "cultivo", "superficie_ha", "score_total", "cv_espacial"]].copy()
     df_show.columns = ["Lote ID", "Cultivo", "Superficie (ha)", "Score", "CV Espacial"]
     st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+# ── Modo: Siniestros (Eventualidades) ────────────────────────────────────────
+elif modo == "🛰️ Siniestros (Eventualidades)":
+    st.subheader("🛰️ Evaluación Satelital de Siniestros (Eventualidades)")
+    st.markdown("""
+    Este módulo evalúa el impacto de eventos climáticos (granizo, viento, etc.) comparando 
+    la salud del cultivo **antes y después** de una fecha específica, ponderada por su etapa fenológica.
+    """)
+
+    with st.expander("📝 Configuración del Análisis", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            fecha_ev = st.date_input("Fecha del Evento", value=datetime.now() - timedelta(days=30))
+            tipo_ev = st.selectbox("Tipo de Evento", ["granizo", "viento", "inundacion", "sequia", "helada"])
+        with col2:
+            cultivo_ev = st.selectbox("Cultivo afectado", ["maiz", "soja", "trigo", "girasol", "cebada"])
+            nombre_caso = st.text_input("Nombre del Caso / Referencia", "Siniestro_001")
+
+        up_file = st.file_uploader("Subir Polígono del Lote (GeoJSON, KML, SHP)", type=["geojson", "kml", "kmz", "shp", "zip"])
+
+    if up_file and st.button("🚀 Ejecutar Peritaje Satelital"):
+        # Guardar archivo temporal
+        suffix = Path(up_file.name).suffix
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(up_file.getvalue())
+            tmp_path = tmp.name
+
+        try:
+            with st.spinner("⏳ Analizando imágenes Sentinel-2 y Baseline histórico..."):
+                # Cargar geometría
+                if suffix.lower() in ['.kml', '.kmz', '.shp', '.zip']:
+                    read_path = tmp_path
+                    if suffix.lower() in ['.zip', '.kmz']: read_path = f"zip://{tmp_path}"
+                    gdf_ev = gpd.read_file(read_path)
+                else:
+                    gdf_ev = gpd.read_file(tmp_path)
+
+                geom_ee, coords = cargar_poligono_desde_gdf(gdf_ev)
+
+                # Ejecutar Pipeline
+                res = run_eventualidades(
+                    geom_ee=geom_ee,
+                    fecha_evento=fecha_ev.strftime('%Y-%m-%d'),
+                    cultivo=cultivo_ev,
+                    tipo_evento=tipo_ev,
+                    caso_nombre=nombre_caso
+                )
+
+                # ── Resultados ───────────────────────────────────────────────
+                st.divider()
+                st.success(f"### Resultado: {res['clasificacion']}")
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Daño Ponderado", f"{res['dano_pond_val']}%")
+                c2.metric("Área Afectada", f"{res['area_afectada']:.1f} ha")
+                c3.metric("Confianza Datos", res['confianza'])
+                c4.metric("Etapa Detectada", res['etapa_desc'])
+
+                # ── Mapa Interactivos ───────────────────────────────────────
+                st.subheader("🗺️ Mapa de Intensidad de Daño")
+                m_ev = generar_mapa_folium(res)
+                st_folium(m_ev, height=600, width="100%", key="mapa_siniestro")
+
+                # ── Detalle Técnico ─────────────────────────────────────────
+                with st.expander("📊 Ver detalle técnico de índices"):
+                    col_t1, col_t2 = st.columns(2)
+                    col_t1.write(f"**NDVI Pre-evento:** {res['ndvi_pre_val']}")
+                    col_t1.write(f"**NDVI Post-evento:** {res['ndvi_post_val']}")
+                    col_t2.write(f"**Baseline (3 años):** {res['baseline_val']}")
+                    col_t2.write(f"**Delta Ajustado:** {res['delta_adj_val']}")
+                    
+                    st.info(f"Metodología: ΔNDVI Relativo ({res['delta_rel_val']}%) × Peso Fenológico ({res['peso_fenologico']}) × Factor Conservador (0.92)")
+
+        except Exception as e:
+            st.error(f"❌ Error en el análisis: {e}")
+        finally:
+            if os.path.exists(tmp_path): os.remove(tmp_path)
