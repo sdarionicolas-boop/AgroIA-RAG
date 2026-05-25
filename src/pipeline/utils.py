@@ -12,7 +12,13 @@ def validar_shapefile(shp_path):
     """Valida el shapefile y extrae información básica."""
     warnings_list = []
     try:
-        lote = gpd.read_file(shp_path)
+        # Intentar restaurar SHX si falta (para SHP sueltos)
+        try:
+            import fiona
+            with fiona.Env(SHAPE_RESTORE_SHX='YES'):
+                lote = gpd.read_file(shp_path)
+        except:
+            lote = gpd.read_file(shp_path)
     except Exception as e:
         raise ValueError("No se pudo leer el shapefile.\n   Error: " + str(e) +
                          "\n   Verificar que .shp, .shx, .dbf y .prj esten completos.")

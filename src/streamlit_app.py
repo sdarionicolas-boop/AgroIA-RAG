@@ -761,7 +761,11 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
     la salud del cultivo **antes y después** de una fecha específica, ponderada por su etapa fenológica.
     """)
 
-    with st.expander("📝 Configuración del Análisis", expanded=True):
+    # Inicializar estado si no existe
+    if 'siniestro_res' not in st.session_state:
+        st.session_state.siniestro_res = None
+
+    with st.expander("📝 Configuración del Análisis", expanded=st.session_state.siniestro_res is None):
         col1, col2 = st.columns(2)
         with col1:
             fecha_ev = st.date_input("Fecha del Evento", value=datetime.now() - timedelta(days=30))
@@ -770,9 +774,16 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
             cultivo_ev = st.selectbox("Cultivo afectado", ["maiz", "soja", "trigo", "girasol", "cebada"])
             nombre_caso = st.text_input("Nombre del Caso / Referencia", "Siniestro_001")
 
-        up_file = st.file_uploader("Subir Polígono del Lote (GeoJSON, KML, SHP)", type=["geojson", "kml", "kmz", "shp", "zip"])
+        st.info("💡 **Nota sobre Shapefiles:** Si usas formato SHP, subí un archivo **.zip** que contenga todos los archivos (.shp, .shx, .dbf).")
+        up_file = st.file_uploader("Subir Polígono del Lote (GeoJSON, KML, KMZ, ZIP)", type=["geojson", "kml", "kmz", "shp", "zip"])
 
-    if up_file and st.button("🚀 Ejecutar Peritaje Satelital"):
+        btn_run = st.button("🚀 Ejecutar Peritaje Satelital", type="primary", disabled=not up_file)
+        if st.session_state.siniestro_res is not None:
+            if st.button("🧹 Limpiar Resultados"):
+                st.session_state.siniestro_res = None
+                st.rerun()
+
+    if up_file and btn_run:
         # Guardar archivo temporal
         suffix = Path(up_file.name).suffix
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -792,7 +803,13 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                         if suffix.lower() in ['.zip', '.kmz']: read_path = f"zip://{tmp_path}"
                         gdf_ev = gpd.read_file(read_path)
                     else:
-                        gdf_ev = gpd.read_file(tmp_path)
+                        # Para SHP sueltos, intentar restaurar SHX si falta
+                        try:
+                            import fiona
+                            with fiona.Env(SHAPE_RESTORE_SHX='YES'):
+                                gdf_ev = gpd.read_file(tmp_path)
+                        except:
+                            gdf_ev = gpd.read_file(tmp_path)
                 except Exception as e:
                     if suffix.lower() in ['.kml', '.kmz']:
                         st.info("⚠ Driver KML no detectado. Usando parser manual...")
@@ -818,54 +835,61 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                     tipo_evento=tipo_ev,
                     caso_nombre=nombre_caso
                 )
-
-                # ── Resultados ───────────────────────────────────────────────
-                st.divider()
-                st.success(f"### Resultado: {res['clasificacion']}")
                 
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Daño Ponderado", f"{res['dano_pond_val']}%")
-                c2.metric("Área Afectada", f"{res['area_afectada']:.1f} ha")
-                c3.metric("Confianza Datos", res['confianza'])
-                c4.metric("Etapa Detectada", res['etapa_desc'])
-
-                # ── Visualizaciones ─────────────────────────────────────────
-                st.subheader("📊 Visualización de Impacto")
-                v_col1, v_col2 = st.columns([1, 1])
-                
-                from src.pipeline.eventualidades import plot_comparativa_ndvi, plot_donut_dano
-                
-                with v_col1:
-                    donut_img = plot_donut_dano(res)
-                    if donut_img:
-                        st.image(donut_img, caption="Distribución de Daño en el Lote", use_container_width=True)
-                
-                with v_col2:
-                    st.markdown(f"**Análisis de Severidad:**")
-                    st.write(f"- 🟡 **Leve:** {res['area_leve']:.1f} ha")
-                    st.write(f"- 🟠 **Moderado:** {res['area_moderada']:.1f} ha")
-                    st.write(f"- 🔴 **Severo:** {res['area_severa']:.1f} ha")
-                    st.info(f"El **{res['area_afectada']/max(res['area_total'],0.1)*100:.1f}%** del lote presenta algún grado de afectación.")
-
-                st.subheader("🛰️ Comparativa Satelital y Mapa de Calor")
-                panel_img = plot_comparativa_ndvi(res)
-                if panel_img:
-                    st.image(panel_img, caption="NDVI Pre-Evento vs Post-Evento vs Severidad", use_container_width=True)
-
-                m_ev = generar_mapa_folium(res)
-                st_folium(m_ev, height=600, width="100%", key="mapa_siniestro")
-
-                # ── Detalle Técnico ─────────────────────────────────────────
-                with st.expander("📊 Ver detalle técnico de índices"):
-                    col_t1, col_t2 = st.columns(2)
-                    col_t1.write(f"**NDVI Pre-evento:** {res['ndvi_pre_val']}")
-                    col_t1.write(f"**NDVI Post-evento:** {res['ndvi_post_val']}")
-                    col_t2.write(f"**Baseline (3 años):** {res['baseline_val']}")
-                    col_t2.write(f"**Delta Ajustado:** {res['delta_adj_val']}")
-                    
-                    st.info(f"Metodología: ΔNDVI Relativo ({res['delta_rel_val']}%) × Peso Fenológico ({res['peso_fenologico']}) × Factor Conservador (0.92)")
+                # Guardar en session state para persistencia
+                st.session_state.siniestro_res = res
+                st.rerun() # Forzar refresco para mostrar resultados fuera del bloque del botón
 
         except Exception as e:
             st.error(f"❌ Error en el análisis: {e}")
         finally:
             if os.path.exists(tmp_path): os.remove(tmp_path)
+
+    # ── Mostrar Resultados (si existen en el estado) ─────────────────────────
+    if st.session_state.siniestro_res:
+        res = st.session_state.siniestro_res
+        
+        st.divider()
+        st.success(f"### Resultado: {res['clasificacion']}")
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Daño Ponderado", f"{res['dano_pond_val']}%")
+        c2.metric("Área Afectada", f"{res['area_afectada']:.1f} ha")
+        c3.metric("Confianza Datos", res['confianza'])
+        c4.metric("Etapa Detectada", res['etapa_desc'])
+
+        # ── Visualizaciones ─────────────────────────────────────────
+        st.subheader("📊 Visualización de Impacto")
+        v_col1, v_col2 = st.columns([1, 1])
+        
+        from src.pipeline.eventualidades import plot_comparativa_ndvi, plot_donut_dano
+        
+        with v_col1:
+            donut_img = plot_donut_dano(res)
+            if donut_img:
+                st.image(donut_img, caption="Distribución de Daño en el Lote", use_container_width=True)
+        
+        with v_col2:
+            st.markdown(f"**Análisis de Severidad:**")
+            st.write(f"- 🟡 **Leve:** {res['area_leve']:.1f} ha")
+            st.write(f"- 🟠 **Moderado:** {res['area_moderada']:.1f} ha")
+            st.write(f"- 🔴 **Severo:** {res['area_severa']:.1f} ha")
+            st.info(f"El **{res['area_afectada']/max(res['area_total'],0.1)*100:.1f}%** del lote presenta algún grado de afectación.")
+
+        st.subheader("🛰️ Comparativa Satelital y Mapa de Calor")
+        panel_img = plot_comparativa_ndvi(res)
+        if panel_img:
+            st.image(panel_img, caption="NDVI Pre-Evento vs Post-Evento vs Severidad", use_container_width=True)
+
+        m_ev = generar_mapa_folium(res)
+        st_folium(m_ev, height=600, width="100%", key="mapa_siniestro_persistente")
+
+        # ── Detalle Técnico ─────────────────────────────────────────
+        with st.expander("📊 Ver detalle técnico de índices"):
+            col_t1, col_t2 = st.columns(2)
+            col_t1.write(f"**NDVI Pre-evento:** {res['ndvi_pre_val']}")
+            col_t1.write(f"**NDVI Post-evento:** {res['ndvi_post_val']}")
+            col_t2.write(f"**Baseline (3 años):** {res['baseline_val']}")
+            col_t2.write(f"**Delta Ajustado:** {res['delta_adj_val']}")
+            
+            st.info(f"Metodología: ΔNDVI Relativo ({res['delta_rel_val']}%) × Peso Fenológico ({res['peso_fenologico']}) × Factor Conservador (0.92)")

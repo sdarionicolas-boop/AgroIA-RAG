@@ -222,7 +222,13 @@ def run_batch_from_geojson(geojson_path, cultivo_default="maiz", years=None,
         read_path = f"zip://{geojson_path}"
 
     try:
-        gdf = gpd.read_file(read_path)
+        # Intentar restaurar SHX si falta (para SHP sueltos)
+        try:
+            import fiona
+            with fiona.Env(SHAPE_RESTORE_SHX='YES'):
+                gdf = gpd.read_file(read_path)
+        except:
+            gdf = gpd.read_file(read_path)
     except Exception as e:
         if geojson_path.lower().endswith(('.kml', '.kmz')):
             print(f"  ⚠ Driver de KML no encontrado. Usando parser manual de AgroIA...")
