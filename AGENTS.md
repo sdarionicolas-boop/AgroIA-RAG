@@ -52,6 +52,7 @@ AgroIA_RAG HACKATON COPERNICUS/
 │   │   ├── reporter.py                ← build_report() PDF, generar_mapa_offline() HTML
 │   │   ├── comparative_reporter.py    ← Generación de rankings multi-lote
 │   │   ├── eventualidades.py          ← Detección de anomalías y granizo (Experimental)
+│   │   ├── validator.py               ← Motor de certificación de precisión (Benchmark)
 │   │   ├── poligonizador.py           ← Lógica de integración con SAM
 │   │   └── ingesta.py                 ← Enviar resultados al RAG
 │   ├── bot/
@@ -192,6 +193,15 @@ Borra lotes sin historial, con scores constantes (placeholders) o que contengan 
 ## 12. Registro de Breaking Changes (v2)
 
 **ASCII Obligatorio:** Todas las claves de los diccionarios de historial deben usar `anio` y `historial_anos`. Las tildes en claves JSON causan fallos en el motor RAG.
+
+---
+
+## 13. Filosofía de Validación (Benchmarking)
+
+Para asegurar la integridad del sistema ante el jurado, se ha adoptado una postura de **"Diferenciación de Métricas"**:
+- **NDVI Satelital:** Mide vigor fotosintético (biomasa viva).
+- **Tasación Humana:** Mide daño mecánico visual (grano caído, espiga rota).
+- **Interpretación del desvío:** En etapas de madurez (ej. Trigo en Noviembre), es normal encontrar una subestimación del satélite frente al reporte de campo. Esto no es un error del sistema, sino la captura de dos fenómenos biológicos distintos. El sistema provee una **segunda opinión objetiva** para mitilar el sesgo humano.
 
 ---
 

@@ -223,6 +223,8 @@ def main():
                         help="Análisis local de un shapefile/GeoJSON: <ruta.shp> [cultivo]")
     parser.add_argument("--batch-geojson", nargs="+", metavar=("GEOJSON", "CULTIVO"),
                         help="Batch desde GeoJSON del poligonizador: <ruta.geojson> [cultivo] [limit]")
+    parser.add_argument("--validate", nargs="+", metavar=("DATASET", "LIMIT"),
+                        help="Ejecuta el motor de certificación: <dataset.shp> [limit]")
     parser.add_argument("--check", action="store_true", help="Solo verificar prerequisitos")
     parser.add_argument("--skip-checks", action="store_true",
                         help="Saltar la verificación de prerequisitos")
@@ -261,6 +263,19 @@ def main():
             sys.exit(0)
         except Exception as e:
             print(ERR(f"\n❌ Error en batch: {e}"))
+            sys.exit(1)
+
+    # ── Validación — Certificación de precisión contra dataset histórico ─────
+    if args.validate:
+        dataset_path = args.validate[0]
+        limit = int(args.validate[1]) if len(args.validate) > 1 else 10
+        from pipeline.validator import AgroIAValidator
+        try:
+            validator = AgroIAValidator(dataset_path)
+            validator.run_certification(limit=limit)
+            sys.exit(0)
+        except Exception as e:
+            print(ERR(f"\n❌ Error en validación: {e}"))
             sys.exit(1)
 
     print(BOLD("\n╔══════════════════════════════════════════╗"))

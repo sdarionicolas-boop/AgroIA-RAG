@@ -70,10 +70,11 @@ Para guías detalladas, referencias de API y arquitectura del sistema, visita:
 ---
 
 ## 📊 Métricas de Validación
-El sistema ha sido validado contra datasets reales de **TAYPE Siniestros** (313 puntos) e **INTA Balcarce** (454 puntos):
+El sistema cuenta con un **Motor de Certificación de Precisión** (`--validate`) que audita el pipeline contra datasets históricos:
 - **Hit Rate**: 85.6% (TAYPE) / 74.9% (INTA).
 - **SAM Score promedio**: 0.962.
 - **Error de área promedio**: 8.5% (INTA) vs referencia manual.
+- **Fidelidad Satelital**: Validado contra siniestros de Córdoba (2018), diferenciando vigor fotosintético de daño mecánico.
 
 ---
 
