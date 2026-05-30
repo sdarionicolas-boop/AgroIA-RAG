@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # === Ollama ===
     ollama_url: str = "http://localhost:11434"
     embedding_model: str = "nomic-embed-text"
-    generation_model: str = "gemma3:4b"
+    generation_model: str = "qwen2.5:7b"
     
     # === Telegram & Seguridad ===
     telegram_token: str = ""
