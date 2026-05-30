@@ -446,8 +446,6 @@ with st.sidebar:
                 # Reutilizamos la lógica de comparar_lotes.py pero adaptada a Streamlit
                 lotes_raw = get_distinct_lotes()
                 df_ranking = pd.DataFrame(lotes_raw, columns=["lote_id", "cultivo", "superficie_ha", "score_total", "updated_at", "cv_espacial", "metadata"])
-                df_ranking["score_total"] = pd.to_numeric(df_ranking["score_total"], errors='coerce').fillna(0)
-                df_ranking["cv_espacial"] = pd.to_numeric(df_ranking["cv_espacial"], errors='coerce').fillna(0)
                 
                 output_dir = Path("outputs")
                 output_dir.mkdir(exist_ok=True)
@@ -731,8 +729,6 @@ elif modo == "🏆 Ranking Global":
         st.stop()
 
     df_ranking = pd.DataFrame(lotes_raw, columns=["lote_id", "cultivo", "superficie_ha", "score_total", "updated_at", "cv_espacial", "metadata"])
-    df_ranking["score_total"] = pd.to_numeric(df_ranking["score_total"], errors='coerce').fillna(0)
-    df_ranking["cv_espacial"] = pd.to_numeric(df_ranking["cv_espacial"], errors='coerce').fillna(0)
     df_ranking = df_ranking.sort_values("score_total", ascending=False)
 
     # Resumen rápido
