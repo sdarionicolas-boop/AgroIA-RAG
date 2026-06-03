@@ -7,7 +7,7 @@
 ## 1. ¿Qué es este proyecto?
 
 **AgroIA** es un sistema de diagnóstico agronómico automatizado que combina:
-- Imágenes satelitales Sentinel-2 (Copernicus) vía Google Earth Engine
+- Imágenes satelitales Sentinel-2 (Copernicus) vía Copernicus Data Space Ecosystem (CDSE/EODAG)
 - Datos climáticos de NASA POWER
 - Delineado automático de polígonos de lotes con SAM (Segment Anything Model)
 - Un motor RAG (Retrieval-Augmented Generation) con PostgreSQL + pgvector + Ollama
@@ -89,7 +89,7 @@ AgroIA_RAG HACKATON COPERNICUS/
                          ▼
 [Pipeline de Análisis — MOTOR v2.5]
   python start.py --pipeline <ruta.shp> [cultivo]
-  - GEE Sentinel-2 SR (NDVI histórico, últimos 6 años)
+  - CDSE Sentinel-2 SR (NDVI histórico, últimos 6 años)
   - NASA POWER (estrés térmico)
   - Score AgroIA + Zonificación A/B/C
   - Ingesta AUTOMÁTICA al RAG (pgvector)
@@ -151,7 +151,7 @@ Funciones clave de `src/rag/core.py`:
 | Comando | Acción |
 |---|---|
 | `python start.py` | Levanta API, Streamlit y Bot en paralelo |
-| `python start.py --check` | Verifica dependencias, BD, Ollama y GEE |
+| `python start.py --check` | Verifica dependencias, BD, Ollama y Copernicus CDSE |
 | `python start.py --pipeline <shp> [cultivo]` | Analiza un lote localmente e ingesta al RAG |
 | `python start.py --batch-geojson <file> [cult] [lim]` | Procesa múltiples polígonos desde un GeoJSON |
 
@@ -208,4 +208,4 @@ Para asegurar la integridad del sistema ante el jurado, se ha adoptado una postu
 ## Instrucción clave para Agentes
 
 Priorizá siempre la modularidad de `src/pipeline/`. Si vas a realizar un análisis, usá `run_full_analysis` de `src.pipeline` en lugar de reimplementar la lógica.
-Consultá `config/.env` para las credenciales de GEE antes de intentar procesar nuevos lotes.
+Consultá `config/.env` para las credenciales de Copernicus CDSE antes de intentar procesar nuevos lotes.

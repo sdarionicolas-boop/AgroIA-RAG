@@ -8,7 +8,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from src.utils.config import settings
-from src.pipeline.gee_extractor import init_gee
+from src.pipeline.eodag_extractor import init_eodag
 from src.pipeline.eventualidades import run_eventualidades, cargar_poligono_desde_gdf
 from Poligonizacion.poligonizador_final import AgroIAPipeline
 
@@ -27,7 +27,7 @@ class AgroIAValidator:
         print(f"🛡️  Iniciando Proceso de Certificación - Dataset: {Path(self.dataset_path).name}")
         
         # 1. Preparar Entorno
-        init_gee(project_id=settings.gee_project_id)
+        init_eodag()
         
         # 2. Cargar Ground Truth
         gdf_truth = gpd.read_file(self.dataset_path)
@@ -62,7 +62,7 @@ class AgroIAValidator:
                 geom_ee, _ = cargar_poligono_desde_gdf(gdf_sam[gdf_sam['id'] == lote_id])
                 
                 res = run_eventualidades(
-                    geom_ee=geom_ee,
+                    geom_shapely=geom_ee,
                     fecha_evento=df_sam_in[df_sam_in['id'] == lote_id].iloc[0]['fecha'],
                     cultivo=str(truth_row.get('Cultivo', 'maiz')).lower(),
                     tipo_evento='granizo',

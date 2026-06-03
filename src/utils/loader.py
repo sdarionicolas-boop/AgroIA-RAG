@@ -9,7 +9,6 @@ import json
 import logging
 import psycopg2
 from psycopg2.extras import Json
-import ollama
 from utils.config import settings
 
 logger = logging.getLogger(__name__)
@@ -18,9 +17,20 @@ logger = logging.getLogger(__name__)
 # EMBEDDING
 # ============================================================================
 def generate_embedding(text: str) -> list[float]:
-    """Genera embedding de 768 dimensiones con nomic-embed-text vía Ollama."""
-    resp = ollama.embed(model=settings.embedding_model, input=text)
-    return resp["embeddings"][0]
+    """Genera embedding de 768 dimensiones con nomic-embed-text vía API REST de Ollama."""
+    import requests
+    url = f"{settings.ollama_url.rstrip('/')}/api/embed"
+    payload = {
+        "model": settings.embedding_model,
+        "input": text
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=30)
+        resp.raise_for_status()
+        return resp.json()["embeddings"][0]
+    except Exception as e:
+        logger.error(f"Error conectando a Ollama en {url}: {e}")
+        raise
 
 # ============================================================================
 # CONEXIÓN

@@ -1,13 +1,11 @@
 # src/pipeline/comparative_reporter.py
 import os
 import numpy as np
+import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from io import BytesIO
 from datetime import datetime
-import tempfile
-from pypdf import PdfWriter, PdfReader
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
@@ -31,7 +29,7 @@ C_TEXT       = HexColor("#212529")
 C_MUTED      = HexColor("#6C757D")
 C_BORDER     = HexColor("#DEE2E6")
 
-VERSION = "1.0.0"
+VERSION = "1.1.0" # Final Demo Version
 
 def build_styles():
     return {
@@ -43,14 +41,26 @@ def build_styles():
         "caption": ParagraphStyle("Caption", fontSize=7, fontName="Helvetica-Oblique", textColor=C_MUTED, alignment=TA_CENTER, spaceBefore=4),
     }
 
+def _sanitize_df(df):
+    """Limpia el dataframe de nulos para evitar errores de graficación."""
+    df = df.copy()
+    cols_numericas = ["score_total", "cv_espacial", "superficie_ha"]
+    for col in cols_numericas:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    return df
+
 def plot_ranking_chart(df_lotes):
-    """Genera un gráfico de barras comparativo de scores."""
+    """Genera un gráfico de barras comparativo de scores (Safe for Demo)."""
+    df_lotes = _sanitize_df(df_lotes)
     df_lotes = df_lotes.sort_values("score_total", ascending=True)
-    fig, ax = plt.subplots(figsize=(10, len(df_lotes)*0.5 + 2))
+    
+    fig, ax = plt.subplots(figsize=(10, max(4, len(df_lotes)*0.5 + 2)))
     fig.patch.set_facecolor('white')
     
-    colors = ['#40916C' if s >= 70 else '#F4A261' if s >= 45 else '#D62828' for s in df_lotes["score_total"]]
-    bars = ax.barh(df_lotes["lote_id"], df_lotes["score_total"], color=colors, edgecolor='white')
+    scores = df_lotes["score_total"].values
+    colors = ['#40916C' if s >= 70 else '#F4A261' if s >= 45 else '#D62828' for s in scores]
+    bars = ax.barh(df_lotes["lote_id"], scores, color=colors, edgecolor='white')
     
     for bar in bars:
         width = bar.get_width()
@@ -65,14 +75,15 @@ def plot_ranking_chart(df_lotes):
     return fig
 
 def plot_scatter_variability(df_lotes):
-    """Scatter plot: Score vs Variabilidad (CV)."""
+    """Scatter plot: Score vs Variabilidad (Safe for Demo)."""
+    df_lotes = _sanitize_df(df_lotes)
     fig, ax = plt.subplots(figsize=(8, 6))
     fig.patch.set_facecolor('white')
     
     for _, row in df_lotes.iterrows():
         color = '#40916C' if row["score_total"] >= 70 else '#F4A261' if row["score_total"] >= 45 else '#D62828'
-        ax.scatter(row["cv_espacial"], row["score_total"], s=row["superficie_ha"]*5, alpha=0.7, color=color, edgecolors='white', label=row["lote_id"] if len(df_lotes) < 10 else None)
-        ax.text(row["cv_espacial"], row["score_total"] + 1, row["lote_id"], fontsize=7, ha='center')
+        ax.scatter(row["cv_espacial"], row["score_total"], s=row["superficie_ha"]*10 + 20, alpha=0.7, color=color, edgecolors='white')
+        ax.text(row["cv_espacial"], row["score_total"] + 1.5, row["lote_id"], fontsize=7, ha='center')
 
     ax.set_xlabel("Variabilidad Espacial (CV)")
     ax.set_ylabel("Score AgroIA")
@@ -84,6 +95,7 @@ def plot_scatter_variability(df_lotes):
     return fig
 
 def build_comparative_report(df_lotes, output_path="outputs/comparativa_lotes.pdf"):
+    df_lotes = _sanitize_df(df_lotes)
     styles = build_styles()
     doc = SimpleDocTemplate(output_path, pagesize=A4, leftMargin=1.5*cm, rightMargin=1.5*cm, topMargin=1.5*cm, bottomMargin=1.5*cm)
     story = []
@@ -94,6 +106,11 @@ def build_comparative_report(df_lotes, output_path="outputs/comparativa_lotes.pd
     story.append(HRFlowable(width="100%", thickness=2, color=C_SECONDARY, spaceAfter=10))
     story.append(Paragraph(f"Fecha de generación: {fecha_str} | AgroIA Intelligence V{VERSION}", styles["body"]))
     story.append(Spacer(1, 0.5*cm))
+
+    if df_lotes.empty:
+        story.append(Paragraph("No hay lotes cargados para analizar.", styles["body"]))
+        doc.build(story)
+        return output_path
 
     # Resumen Ejecutivo
     total_ha = df_lotes["superficie_ha"].sum()
@@ -111,10 +128,9 @@ def build_comparative_report(df_lotes, output_path="outputs/comparativa_lotes.pd
     data = [[Paragraph(h, styles["th"]) for h in ["Lote ID", "Cultivo", "Superficie", "CV", "Score"]]]
     df_sorted = df_lotes.sort_values("score_total", ascending=False)
     for _, row in df_sorted.iterrows():
-        color = C_ALERT if row["score_total"] < 45 else C_WARN if row["score_total"] < 70 else C_SECONDARY
         data.append([
-            Paragraph(row["lote_id"], styles["tc"]),
-            Paragraph(row["cultivo"].capitalize(), styles["tc"]),
+            Paragraph(str(row["lote_id"]), styles["tc"]),
+            Paragraph(str(row.get("cultivo", "N/D")).capitalize(), styles["tc"]),
             Paragraph(f"{row['superficie_ha']:.1f} ha", styles["tc"]),
             Paragraph(f"{row['cv_espacial']:.3f}", styles["tc"]),
             Paragraph(f"<b>{int(row['score_total'])}</b>", styles["tc"])
@@ -131,18 +147,20 @@ def build_comparative_report(df_lotes, output_path="outputs/comparativa_lotes.pd
     story.append(Spacer(1, 0.6*cm))
 
     # Charts
-    from .reporter import fig_to_rl_image
-    story.append(fig_to_rl_image(plot_ranking_chart(df_lotes), width_cm=16))
-    story.append(Paragraph("Gráfico 1: Comparativa de performance relativa entre lotes.", styles["caption"]))
-    story.append(Spacer(1, 1*cm))
-    
-    story.append(fig_to_rl_image(plot_scatter_variability(df_lotes), width_cm=14))
-    story.append(Paragraph("Gráfico 2: Posicionamiento estratégico (Potencial vs Variabilidad).", styles["caption"]))
+    try:
+        from .reporter import fig_to_rl_image
+        story.append(fig_to_rl_image(plot_ranking_chart(df_lotes), width_cm=16))
+        story.append(Paragraph("Gráfico 1: Comparativa de performance relativa entre lotes.", styles["caption"]))
+        story.append(Spacer(1, 1*cm))
+        
+        story.append(fig_to_rl_image(plot_scatter_variability(df_lotes), width_cm=14))
+        story.append(Paragraph("Gráfico 2: Posicionamiento estratégico (Potencial vs Variabilidad).", styles["caption"]))
+    except Exception as e:
+        story.append(Paragraph(f"[Error al generar gráficos: {e}]", styles["body"]))
     
     story.append(PageBreak())
     story.append(Paragraph("3. Recomendaciones de Cartera", styles["h2"]))
     
-    # Lógica de recomendación simple
     top_lote = df_sorted.iloc[0]
     worst_lote = df_sorted.iloc[-1]
     story.append(Paragraph(f"• <b>Prioridad de Inversión:</b> El lote <b>{top_lote['lote_id']}</b> presenta las mejores condiciones para maximizar rinde.", styles["body"]))

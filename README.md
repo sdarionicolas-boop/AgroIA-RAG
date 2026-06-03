@@ -60,7 +60,7 @@ Para guías detalladas, referencias de API y arquitectura del sistema, visita:
 
 - **Backend**: FastAPI + Python 3.10.
 - **Base de Datos**: PostgreSQL + `pgvector` para el motor de búsqueda semántica.
-- **Satélite**: Google Earth Engine (Sentinel-2 SR) + NASA POWER.
+- **Satélite**: Copernicus Data Space Ecosystem (Sentinel-2 SR vía EODAG/CDSE) + NASA POWER.
 - **IA/ML**: 
     - **SAM (Segment Anything Model)** para visión.
     - **IsolationForest** para limpieza de outliers.

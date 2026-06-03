@@ -26,7 +26,7 @@ from reportlab.platypus import (
 from reportlab.pdfgen import canvas as rl_canvas
 
 # Importar CONFIG para las tablas del final
-from .agro_math import CONFIG
+from .agro_math import CONFIG, calcular_score
 
 # ============================================================================
 # PALETA Y CONSTANTES
@@ -267,7 +267,7 @@ class PageDecorator:
         canv.drawRightString(w - 2.2*cm, PAGE_H - 1.28*cm, f"Score: {self.score}/100")
         canv.setFillColor(C_MUTED)
         canv.setFont("Helvetica", 7)
-        canv.drawString(1.8*cm, 1.1*cm, f"Generado: {self.fecha} | v{VERSION} | NASA POWER + GEE Sentinel-2")
+        canv.drawString(1.8*cm, 1.1*cm, f"Generado: {self.fecha} | v{VERSION} | NASA POWER + Copernicus CDSE Sentinel-2")
         canv.drawRightString(w - 1.8*cm, 1.1*cm, f"Pág. {doc.page}")
         canv.setStrokeColor(C_BORDER)
         canv.setLineWidth(0.3)
@@ -344,7 +344,7 @@ def build_cover_page(canv, res, fecha_str, lote_id):
         y -= 0.5*cm
     canv.setFont("Helvetica", 8)
     canv.setFillColor(white)
-    canv.drawCentredString(w/2, 2.0*cm, f"Generado: {fecha_str}  |  v{VERSION}  |  NASA POWER · GEE Sentinel-2 · IA (IsolationForest)")
+    canv.drawCentredString(w/2, 2.0*cm, f"Generado: {fecha_str}  |  v{VERSION}  |  NASA POWER · Copernicus CDSE Sentinel-2 · IA (IsolationForest)")
     canv.setFont("Helvetica", 7.5)
     canv.setFillColor(HexColor("#95D5B2"))
     canv.drawCentredString(w/2, 1.3*cm, "Estimaciones basadas en interpolación sinusoidal Tmax/Tmin. Citar: INTA Marcos Juárez / Univ. Nebraska.")
@@ -389,7 +389,7 @@ def build_report(res, output_path=None, lote_id=None):
     story.append(Spacer(1, 0.5*cm))
 
     # Sección 2: NDVI
-    story.append(Paragraph("2. Análisis satelital — NDVI histórico (GEE Sentinel-2)", styles["h2"]))
+    story.append(Paragraph("2. Análisis satelital — NDVI histórico (Copernicus CDSE Sentinel-2)", styles["h2"]))
     story.append(Spacer(1, 0.2*cm))
     años_validos = len(res["ndvi_historico"])
     años_excl    = len(res.get("anos_excluidos", []))
@@ -435,23 +435,15 @@ def build_report(res, output_path=None, lote_id=None):
         horas = res["horas_calor_hist"].get(a, 0)
         previos = [res["ndvi_historico"][y] for y in anos_hist if y < a]
         
-        # Recalcular componentes para la tabla (simplificado para visualización)
-        vigor = float(np.clip(ndvi / 0.9, 0, 1) * 40)
-        clima = float(np.clip(1 - (horas or 0) / umbral_clima, 0, 1) * 10)
-        if len(previos) >= 2:
-            cv_p = np.std(previos) / np.mean(previos) if np.mean(previos) > 0 else 0
-            est  = float(np.clip(1 - cv_p / 0.45, 0, 1) * 30)
-        else:
-            est = float(np.clip(15.0 + (ndvi - 0.6) * 10, 10, 25))
-            
-        if len(previos) >= 4:
-            iso    = IsolationForest(contamination=0.2, random_state=42)
-            labels = iso.fit_predict(np.array(previos).reshape(-1, 1))
-            limp   = float(np.clip(1 - (labels==-1).sum()/len(labels)/0.40, 0, 1) * 20)
-        else:
-            limp = float(np.clip(10.0 + (ndvi - 0.6) * 5, 8, 15))
-            
-        total = int(round(vigor + est + limp + clima))
+        # Usar la lógica centralizada de calcular_score
+        s = calcular_score(ndvi, horas, previos + [ndvi], umbral_clima)
+        
+        vigor = s["vigor"]
+        est   = s["estabilidad"]
+        limp  = s["limpieza"]
+        clima = s["clima"]
+        total = s["total"]
+        
         filas.append([Paragraph(str(a), styles["table_cell"]),
                       Paragraph(f"{ndvi:.3f}", styles["table_cell"]),
                       Paragraph(f"{horas:.1f}", styles["table_cell"]),
@@ -524,9 +516,9 @@ def build_report(res, output_path=None, lote_id=None):
     story.append(Spacer(1, 0.3*cm))
     met_tabla = [
         [Paragraph(h, styles["table_header"]) for h in ["Módulo", "Fuente", "Método", "Limitación conocida"]],
-        [Paragraph("NDVI histórico", styles["table_cell"]), Paragraph("GEE Sentinel-2 SR", styles["table_cell"]), Paragraph("Mosaico mediano", styles["table_cell"]), Paragraph("Nubosidad", styles["table_cell"])],
+        [Paragraph("NDVI histórico", styles["table_cell"]), Paragraph("Copernicus CDSE Sentinel-2 L2A", styles["table_cell"]), Paragraph("Statistical API + máscara SCL", styles["table_cell"]), Paragraph("Nubosidad", styles["table_cell"])],
         [Paragraph("Estrés térmico", styles["table_cell"]), Paragraph("NASA POWER (~0.5°)", styles["table_cell"]), Paragraph("Sinusoidal", styles["table_cell"]), Paragraph("Resolución espacial", styles["table_cell"])],
-        [Paragraph("Score Vigor", styles["table_cell"]), Paragraph("GEE NDVI", styles["table_cell"]), Paragraph("Normalización", styles["table_cell"]), Paragraph("Tope 0.9", styles["table_cell"])],
+        [Paragraph("Score Vigor", styles["table_cell"]), Paragraph("CDSE NDVI", styles["table_cell"]), Paragraph("Normalización", styles["table_cell"]), Paragraph("Tope 0.9", styles["table_cell"])],
     ]
     mt = Table(met_tabla, colWidths=[3.2*cm, 3.5*cm, 4.8*cm, 3*cm])
     mt.setStyle(TableStyle([("BACKGROUND", (0,0), (-1,0), C_PRIMARY),
@@ -547,7 +539,7 @@ def build_report(res, output_path=None, lote_id=None):
     story.append(HRFlowable(width="100%", thickness=0.3, color=C_BORDER, spaceAfter=4))
     story.append(Paragraph(
         f"AgroIA Report v{VERSION} — Generado: {fecha_str} — "
-        f"NASA POWER · GEE Sentinel-2 · sklearn IsolationForest", styles["meta"]))
+        f"NASA POWER · Copernicus CDSE Sentinel-2 · sklearn IsolationForest", styles["meta"]))
 
     doc.build(story, onFirstPage=decorator, onLaterPages=decorator)
 
@@ -562,7 +554,7 @@ def build_report(res, output_path=None, lote_id=None):
     os.unlink(body_path)
     return output_path
 
-def generar_mapa_offline(lote_gdf, cultivo="maiz", score=None, conf=None, zonas_gdf=None, output_path="mapa.html"):
+def generar_mapa_offline(lote_gdf, cultivo="maiz", score=None, conf=None, zonas_gdf=None, output_path="mapa.html", puntos_gdf=None):
     centroide = lote_gdf.geometry.iloc[0].centroid
     m = folium.Map(location=[centroide.y, centroide.x], zoom_start=15, tiles='OpenStreetMap')
     folium.TileLayer(
@@ -572,19 +564,67 @@ def generar_mapa_offline(lote_gdf, cultivo="maiz", score=None, conf=None, zonas_
 
     # Limpiar columnas no serializables (Timestamp, etc.) antes de pasar a Folium
     gdf_clean = lote_gdf[['geometry']].copy()
-    folium.GeoJson(gdf_clean, name="Lote", style_function=lambda x: {'fillColor': '#2D6A4F', 'color': 'white', 'weight': 2, 'fillOpacity': 0.2}).add_to(m)
+    folium.GeoJson(gdf_clean, name="Lote", style_function=lambda x: {'fillColor': 'none', 'color': 'white', 'weight': 3, 'fillOpacity': 0}).add_to(m)
     
-    if zonas_gdf is not None:
+    if puntos_gdf is not None and not puntos_gdf.empty:
+        for zona in ['A', 'B', 'C']:
+            color = ZONA_COLORS[zona]
+            subset = puntos_gdf[puntos_gdf['zona'] == zona]
+            if subset.empty: continue
+            
+            fg = folium.FeatureGroup(name=ZONA_LABELS[zona])
+            for _, row in subset.iterrows():
+                lat, lon = row.geometry.y, row.geometry.x
+                popup_txt = f"<b>Ambiente {zona}</b><br>NDVI: {row['ndvi']:.3f}<br>{ZONA_LABELS[zona]}<br>Lat: {lat:.5f}<br>Lon: {lon:.5f}"
+                folium.CircleMarker(
+                    location=[lat, lon],
+                    radius=5,
+                    color=color,
+                    fill=True,
+                    fillColor=color,
+                    fill_opacity=0.7,
+                    weight=3,
+                    tooltip=popup_txt
+                ).add_to(fg)
+            fg.add_to(m)
+    elif zonas_gdf is not None:
+        # Fallback por si no hay puntos pero hay polígonos
         for zona in ['A', 'B', 'C']:
             color = ZONA_COLORS[zona]
             subset = zonas_gdf[zonas_gdf['zona'] == zona]
             if subset.empty: continue
-            fg = folium.FeatureGroup(name=ZONA_LABELS[zona])
-            for _, row in subset.iterrows():
-                lat, lon = row.geometry.y, row.geometry.x
-                popup_txt = f"Zona {zona}<br>NDVI: {row['ndvi']:.3f}"
-                folium.CircleMarker(location=[lat, lon], radius=5, color=color, fill=True, fill_opacity=0.7, popup=popup_txt).add_to(fg)
-            fg.add_to(m)
+            
+            # 1. Dibujar polígonos de zona (el área completa)
+            folium.GeoJson(
+                subset,
+                name=ZONA_LABELS[zona],
+                style_function=lambda x, c=color: {
+                    'fillColor': c,
+                    'color': 'white',
+                    'weight': 1,
+                    'fillOpacity': 0.4
+                },
+                tooltip=f"Zona {zona}"
+            ).add_to(m)
+
+            # 2. Agregar "Puntos de Acción" (Centroide de la parte más grande de cada zona)
+            # Solo ponemos un punto por zona para no saturar el mapa
+            largest_poly = max(subset.geometry, key=lambda p: p.area)
+            centroid = largest_poly.centroid
+            ndvi_val = subset.iloc[0]['ndvi']
+            
+            fg_points = folium.FeatureGroup(name=f"Puntos de Acción - {zona}")
+            popup_txt = f"<b>PUNTO DE ACCIÓN {zona}</b><br>Recomendación: {zona}<br>NDVI: {ndvi_val:.3f}"
+            
+            folium.CircleMarker(
+                location=[centroid.y, centroid.x],
+                radius=8,
+                color=color,
+                fill=True,
+                fill_opacity=0.9,
+                popup=folium.Popup(popup_txt, max_width=200)
+            ).add_to(fg_points)
+            fg_points.add_to(m)
     
     folium.LayerControl().add_to(m)
     m.save(output_path)

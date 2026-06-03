@@ -7,9 +7,20 @@ _root = Path(__file__).resolve().parent.parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
+# Evitar ValueError: signal only works in main thread al importar eodag en hilos secundarios de Streamlit
+import signal
+_original_signal = signal.signal
+def _safe_signal(signalnum, handler):
+    try:
+        return _original_signal(signalnum, handler)
+    except ValueError as e:
+        if "signal only works in main thread" in str(e):
+            return None
+        raise e
+signal.signal = _safe_signal
+
 import streamlit as st
 import psycopg2
-import ollama
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -33,7 +44,7 @@ except:
     pass
 
 # Importar el pipeline real
-from src.pipeline import run_full_analysis, run_batch_from_geojson
+from src.pipeline import run_full_analysis, run_batch_from_geojson, OUTPUTS_DIR
 # Importar el poligonizador (necesitaremos inyectar el path si no está)
 from Poligonizacion.poligonizador_final import AgroIAPipeline
 
@@ -130,6 +141,99 @@ def reset_database():
 # COMPARACIÓN DE LOTES
 # (consultar_agente y fetch_context vienen de rag.core — ver imports arriba)
 # ============================================================================
+def _build_comparative_block(lote_a: str, lote_b: str, da: dict, db: dict) -> str:
+    """
+    Construye una TABLA COMPARATIVA pre-computada entre dos lotes.
+    Garantiza que los valores de A y B nunca se crucen y declara explícitamente
+    qué lote gana en cada componente. Inyectado al contexto para que el LLM
+    (gemma3:4b) solo tenga que narrarlo, no calcularlo.
+    """
+    desg_a = da.get("score_desglose", {}) or {}
+    desg_b = db.get("score_desglose", {}) or {}
+
+    def _f(v, fmt=".3f"):
+        try: return format(float(v), fmt)
+        except (TypeError, ValueError): return "N/D"
+
+    def _pct(val, maxv):
+        try:
+            v = float(val); m = float(maxv)
+            return f"{v/m*100:.1f}%" if m else "N/D"
+        except (TypeError, ValueError):
+            return "N/D"
+
+    score_a = float(da.get("score_total", 0) or 0)
+    score_b = float(db.get("score_total", 0) or 0)
+    ndvi_a  = float(da.get("ndvi", 0) or 0)
+    ndvi_b  = float(db.get("ndvi", 0) or 0)
+    gdd_a   = float(da.get("gdd", 0) or 0)
+    gdd_b   = float(db.get("gdd", 0) or 0)
+    cv_a    = float(da.get("cv", 0) or 0)
+    cv_b    = float(db.get("cv", 0) or 0)
+
+    componentes = [
+        ("Vigor",       desg_a.get("vigor", 0),       desg_b.get("vigor", 0),       40),
+        ("Estabilidad", desg_a.get("estabilidad", 0), desg_b.get("estabilidad", 0), 30),
+        ("Limpieza",    desg_a.get("limpieza", 0),    desg_b.get("limpieza", 0),    20),
+        ("Clima",       desg_a.get("clima", 0),       desg_b.get("clima", 0),       10),
+    ]
+
+    # Tabla markdown
+    table = (
+        f"| Métrica            | {lote_a} | {lote_b} |\n"
+        f"|--------------------|----------|----------|\n"
+        f"| Score total        | {score_a:.0f}/100  | {score_b:.0f}/100  |\n"
+        f"| NDVI crítico       | {ndvi_a:.3f}      | {ndvi_b:.3f}      |\n"
+        f"| Estrés térmico (h) | {gdd_a:.1f}       | {gdd_b:.1f}       |\n"
+        f"| CV espacial        | {cv_a:.3f}        | {cv_b:.3f}        |\n"
+    )
+    for name, va, vb, maxv in componentes:
+        va_f, vb_f = float(va or 0), float(vb or 0)
+        table += (f"| {name:<18} | {va_f:.1f}/{maxv} ({_pct(va_f, maxv)}) "
+                  f"| {vb_f:.1f}/{maxv} ({_pct(vb_f, maxv)}) |\n")
+
+    # Significancia del cambio de Score
+    score_diff = score_a - score_b
+    if abs(score_diff) <= 3:
+        sig = (f"⚠ DIFERENCIA DE SCORE: {score_diff:+.0f} pts — dentro del ruido típico (≤3 pts). "
+               f"NO debe interpretarse como ventaja productiva real entre los lotes.")
+    elif abs(score_diff) > 5:
+        ganador_score = lote_a if score_a > score_b else lote_b
+        sig = (f"→ DIFERENCIA DE SCORE: {score_diff:+.0f} pts a favor de {ganador_score} — "
+               f"diferencia significativa (>5 pts), amerita análisis causal profundo.")
+    else:
+        sig = f"→ DIFERENCIA DE SCORE: {score_diff:+.0f} pts — diferencia leve, marginal."
+
+    # Ganadores por componente (línea por línea, sin ambigüedad)
+    ganadores = []
+    # NDVI
+    if abs(ndvi_a - ndvi_b) < 0.01: ganadores.append(f"  • NDVI crítico: empate técnico ({ndvi_a:.3f})")
+    elif ndvi_a > ndvi_b:           ganadores.append(f"  • NDVI crítico: gana **{lote_a}** ({ndvi_a:.3f} vs {ndvi_b:.3f})")
+    else:                            ganadores.append(f"  • NDVI crítico: gana **{lote_b}** ({ndvi_b:.3f} vs {ndvi_a:.3f})")
+    # Estrés (menor es mejor)
+    if abs(gdd_a - gdd_b) < 0.5: ganadores.append(f"  • Estrés térmico: empate técnico ({gdd_a:.1f}h)")
+    elif gdd_a < gdd_b:          ganadores.append(f"  • Estrés térmico: **{lote_a}** sufre MENOS ({gdd_a:.1f}h vs {gdd_b:.1f}h)")
+    else:                         ganadores.append(f"  • Estrés térmico: **{lote_b}** sufre MENOS ({gdd_b:.1f}h vs {gdd_a:.1f}h)")
+    # Componentes del Score (mayor es mejor)
+    for name, va, vb, maxv in componentes:
+        va_f, vb_f = float(va or 0), float(vb or 0)
+        if abs(va_f - vb_f) < 0.1:
+            ganadores.append(f"  • {name}: empate técnico ({va_f:.1f}/{maxv})")
+        elif va_f > vb_f:
+            ganadores.append(f"  • {name}: gana **{lote_a}** ({va_f:.1f}/{maxv} vs {vb_f:.1f}/{maxv})")
+        else:
+            ganadores.append(f"  • {name}: gana **{lote_b}** ({vb_f:.1f}/{maxv} vs {va_f:.1f}/{maxv})")
+
+    return (
+        "=== TABLA COMPARATIVA PRE-COMPUTADA (USAR EXACTAMENTE ESTOS VALORES) ===\n"
+        f"{table}\n"
+        f"{sig}\n\n"
+        "GANADOR POR MÉTRICA (no inviertas estos comparativos):\n"
+        + "\n".join(ganadores) +
+        "\n=== FIN TABLA COMPARATIVA ===\n"
+    )
+
+
 def comparar_dos_lotes(lote_a: str, lote_b: str) -> str:
     """
     Compara dos lotes usando el RAG centralizado.
@@ -146,24 +250,37 @@ def comparar_dos_lotes(lote_a: str, lote_b: str) -> str:
         ctx_a = fetch_context(lote_a, "score NDVI vigor estabilidad historial", top_k=4)
         ctx_b = fetch_context(lote_b, "score NDVI vigor estabilidad historial", top_k=4)
 
+        # Bloque comparativo pre-computado en Python (evita errores de ranking del LLM)
+        comparative_block = _build_comparative_block(lote_a, lote_b, da, db)
+
         prompt_comparacion = (
-            f"=== LOTE A: {lote_a} ===\n{ctx_a}\n\n"
-            f"=== LOTE B: {lote_b} ===\n{ctx_b}"
+            f"{comparative_block}\n\n"
+            f"=== DETALLE LOTE A: {lote_a} ===\n{ctx_a}\n\n"
+            f"=== DETALLE LOTE B: {lote_b} ===\n{ctx_b}"
         )
 
-        resp = ollama.chat(
-            model=settings.generation_model,
-            messages=[
+        import requests
+        url = f"{settings.ollama_url.rstrip('/')}/api/chat"
+        payload = {
+            "model": settings.generation_model,
+            "messages": [
                 {
                     "role": "system",
                     "content": (
                         BASE_PROMPT + "\n"
                         "Estás realizando una CONSULTORÍA AGRONÓMICA COMPARATIVA. Sé profundo.\n"
+                        "REGLA CRÍTICA DE COMPARACIÓN: El usuario te entregó una TABLA COMPARATIVA PRE-COMPUTADA "
+                        "y una lista de GANADOR POR MÉTRICA. Estos datos son la VERDAD ABSOLUTA — "
+                        "NO los recalcules, NO inviertas los comparativos, NO confundas qué lote tiene cuál valor. "
+                        "Simplemente narrá lo que dice la tabla y explicá AGRONÓMICAMENTE las implicancias.\n"
                         "Estructura tu respuesta estrictamente así:\n"
-                        "1. TABLA COMPARATIVA: Cruce de métricas (Score, NDVI, Estrés, Componentes).\n"
-                        "2. ANÁLISIS DE RENDIMIENTO: Explica por qué un lote tiene mejor vigor o estabilidad que el otro basándote en los datos.\n"
-                        "3. FACTORES LIMITANTES: Identifica qué está frenando el potencial de cada lote (Clima, Limpieza, etc.).\n"
-                        "4. CONCLUSIÓN Y RECOMENDACIÓN: Cuál tiene mejor perspectiva y qué acción agronómica sugerirías."
+                        "1. TABLA COMPARATIVA: Reproducí la tabla pre-computada tal cual (mismos valores, mismo orden).\n"
+                        "2. ANÁLISIS DE RENDIMIENTO: Para cada métrica, narrá el ganador según la lista pre-computada. "
+                        "NUNCA digas que un lote gana en algo si la lista dice lo contrario.\n"
+                        "3. FACTORES LIMITANTES: Identificá qué componente arrastra más a cada lote (el que tiene "
+                        "MENOR % del máximo según la tabla).\n"
+                        "4. CONCLUSIÓN Y RECOMENDACIÓN: Cuál lote tiene mejor perspectiva. "
+                        "Si la diferencia de Score está dentro del ruido (≤3), declaralo explícitamente."
                     ),
                 },
                 {
@@ -174,9 +291,21 @@ def comparar_dos_lotes(lote_a: str, lote_b: str) -> str:
                     ),
                 },
             ],
-            options={"temperature": 0.3, "num_predict": 1536},
-        )
-        return resp["message"]["content"]
+            "stream": False,
+            "keep_alive": "10m",
+            "options": {"temperature": 0.3, "num_predict": 1536, "num_ctx": 4096},
+        }
+
+        try:
+            resp = requests.post(url, json=payload, timeout=240)
+        except requests.exceptions.ReadTimeout:
+            # Reintento warm (modelo ya cargado en RAM tras el primer intento)
+            resp = requests.post(url, json=payload, timeout=180)
+        resp.raise_for_status()
+        return resp.json()["message"]["content"]
+    except requests.exceptions.ReadTimeout:
+        return ("⏳ El modelo tardó demasiado en responder la comparación. "
+                "Probá de nuevo en unos segundos (el modelo ya queda en memoria).")
     except Exception as e:
         return f"❌ Error en comparación: {e}"
 
@@ -293,10 +422,11 @@ with st.sidebar:
     lotes_info = get_distinct_lotes()
     lote_ids = [r[0] for r in lotes_info] if lotes_info else []
     
-    modo = st.radio("Modo de análisis: ", 
-                    ["🗺️ Mapa de Lotes", "🔍 Inspeccionar un Lote", "⚖️ Comparar Lote A vs B", "🏆 Ranking Global", "🛰️ Siniestros (Eventualidades)"], 
+    modo = st.radio("Modo de análisis: ",
+                    ["🗺️ Mapa de Lotes", "🔍 Inspeccionar un Lote", "⚖️ Comparar Lote A vs B", "🏆 Ranking Global", "🛰️ Siniestros (Eventualidades)"],
                     index=0)
     st.divider()
+
 
     if st.button("🗑️ Limpiar Base de Datos", use_container_width=True):
         reset_database()
@@ -360,8 +490,13 @@ with st.sidebar:
                             if poly_pipe.df is not None:
                                 poly_pipe.df['cultivo'] = cultivo_default
                             out_prefix = os.path.join(tempfile.gettempdir(), f"agroia_st_{int(time.time())}")
-                            poly_pipe.ejecutar(output_prefix=out_prefix)
-                            geojson_path = f"{out_prefix}.geojson"
+                            generated_file = poly_pipe.ejecutar(output_prefix=out_prefix)
+                            
+                            if generated_file and os.path.exists(generated_file):
+                                geojson_path = generated_file
+                            else:
+                                st.error("❌ Falló la delineación inteligente. Verificá tu conexión a Copernicus o las coordenadas.")
+                                st.stop()
                         else:
                             st.warning("⚠️ Modelo SAM no encontrado. Usando delineación geométrica (buffer)...")
                             for idx, row in df_input.iterrows():
@@ -390,12 +525,26 @@ with st.sidebar:
                             st.error("Error al generar geometría. Revisa los datos de entrada.")
                             st.stop()
                     else:
-                        # Flujo directo: GeoJSON cargado → GEE (analisis) → RAG
+                        # Flujo directo: GeoJSON cargado → Copernicus CDSE (analisis) → RAG
                         geojson_path = tmp_path
                         st.write(f"📂 Archivo {suffix} cargado, saltando delineacion SAM...")
 
                     st.write("🛰️ Ejecutando analisis satelital y scoring...")
-                    res_batch = run_batch_from_geojson(geojson_path, cultivo_default=cultivo_default, push_to_rag=True)
+                    
+                    progress_bar = st.progress(0)
+                    progress_text = st.empty()
+
+                    def update_ui(idx, total, name):
+                        pct = idx / total
+                        progress_bar.progress(pct)
+                        progress_text.markdown(f"**[{idx}/{total}]** Procesando: `{name}`...")
+
+                    res_batch = run_batch_from_geojson(
+                        geojson_path, 
+                        cultivo_default=cultivo_default, 
+                        push_to_rag=True,
+                        progress_callback=update_ui
+                    )
 
                     ok_count = sum(1 for r in res_batch if r["status"] == "OK")
                     fail_count = len(res_batch) - ok_count
@@ -415,7 +564,7 @@ with st.sidebar:
                     with st.expander("🔍 Detalle de errores por lote"):
                         for r in res_batch:
                             st.write(f"- **{r['lote_id']}**: {r['status']}")
-                    st.info("💡 Posibles causas: GEE sin autenticar, sin imágenes Sentinel-2 disponibles para las fechas, o conexión a internet inestable.")
+                    st.info("💡 Posibles causas: Error de autenticación en CDSE, sin imágenes Sentinel-2 disponibles para las fechas, o conexión a internet inestable.")
 
             except Exception as e:
                 st.error(f"❌ Error en el proceso: {e}")
@@ -463,7 +612,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error al generar PDF: {e}")
     st.divider()
-    st.caption("AgroIA v2.4.0 | GEE Sentinel-2 + NASA POWER")
+    st.caption("AgroIA v2.5.0 | Copernicus CDSE (Sentinel-2) + NASA POWER")
 
     # ── Administración de base de datos ──────────────────────────────────────
     with st.expander("🗑️ Administración de datos", expanded=False):
@@ -483,7 +632,7 @@ with st.sidebar:
             try:
                 import requests as _req
                 r = _req.delete(
-                    f"http://localhost:{settings.api_port if hasattr(settings, 'api_port') else 8000}/lotes/{lote_borrar}",
+                    f"http://localhost:{settings.api_port}/lotes/{lote_borrar}",
                     headers={"Authorization": f"Bearer {settings.ingesta_secret_key}"},
                     timeout=10,
                 )
@@ -511,7 +660,7 @@ with st.sidebar:
             try:
                 import requests as _req
                 r = _req.delete(
-                    f"http://localhost:{settings.api_port if hasattr(settings, 'api_port') else 8000}/lotes",
+                    f"http://localhost:{settings.api_port}/lotes",
                     headers={"Authorization": f"Bearer {settings.ingesta_secret_key}"},
                     timeout=10,
                 )
@@ -553,9 +702,15 @@ if modo == "🗺️ Mapa de Lotes":
     # Añadir marcadores de lotes existentes
     for r in lotes_info:
         lid, cult, sup, sc, _, _, raw_meta = r
+        # Aseguramos que meta sea un diccionario
         meta = raw_meta if isinstance(raw_meta, dict) else json.loads(raw_meta or '{}')
+        
+        # BUSQUEDA DEL CENTROIDE: 
         c = meta.get("centroide", [])
-        if c:
+        if isinstance(c, dict):
+            c = [c.get('lat', 0), c.get('lon', 0)]
+        
+        if c and len(c) == 2 and c[0] != 0:
             color = "green" if sc >= 70 else "orange" if sc >= 45 else "red"
             folium.Marker(
                 location=c,
@@ -588,7 +743,91 @@ elif modo == "🔍 Inspeccionar un Lote":
     c1.metric("🏆 Score AgroIA", f"{score}/100", delta=f"{score_delta:+d} vs año ant." if score_delta is not None else None)
     c2.metric("🛰️ NDVI crítico", f"{datos['ndvi']:.3f}")
     c3.metric("🌡️ Estrés térmico", f"{datos['gdd']:.1f} h")
-    c4.metric("📐 CV espacial", f"{datos['cv']:.3f}" if datos['cv'] else "N/D")
+    c4.metric("📐 CV espacial", f"{datos['cv']:.3f}" if datos.get('cv') is not None else "N/D")
+    
+    # ── Ficha de Auditoría en Cascada (IsolationForest → VigorDAE) ───────────
+    st.divider()
+    st.markdown("### 🔬 Auditoría de Serie Satelital — Cascada de IA")
+    st.caption(
+        "AgroIA audita la calidad del NDVI histórico en dos pasos: "
+        "**(1)** un IsolationForest detecta outliers rápidos en el pipeline, "
+        "**(2)** si la confianza cae, se recomienda derivar a **VigorDAE**, un autoencoder LSTM "
+        "entrenado para reconstruir series satelitales contaminadas por nubes y sombras."
+    )
+
+    col_inf, col_audit = st.columns([2, 1])
+
+    with col_inf:
+        # Pre-auditoría interna: IsolationForest ya ejecutado en el pipeline.
+        confiabilidad = 100
+        n_invalidos = 0
+        if df_hist is not None:
+            n_invalidos = len(df_hist[df_hist["valido"] == False])
+            confiabilidad = max(0, 100 - (n_invalidos * 20))
+
+        # Mostrar el componente Limpieza del Score (output real del IsolationForest)
+        limpieza_score = datos.get("score_desglose", {}).get("limpieza", None)
+        limpieza_txt = f" · **Limpieza IA (Score): {limpieza_score:.1f}/20**" if limpieza_score is not None else ""
+
+        if confiabilidad >= 80:
+            st.success(
+                f"✅ **Pre-Auditoría IsolationForest: {confiabilidad}% confiable**{limpieza_txt}\n\n"
+                f"La serie temporal de NDVI no presenta años outliers detectables. "
+                f"El Score se calculó sobre datos confiables — no se requiere capa de corrección adicional."
+            )
+        else:
+            st.error(
+                f"🚨 **Pre-Auditoría IsolationForest: {confiabilidad}% confiable**{limpieza_txt}\n\n"
+                f"Se detectaron **{n_invalidos} año(s) anómalos** en la serie histórica "
+                f"(probable contaminación por nubes/sombras no filtradas por la máscara SCL).\n\n"
+                f"➡ **Derivación recomendada a VigorDAE** — el autoencoder LSTM reconstruirá los puntos "
+                f"sospechosos para validar si el Score subestima o sobreestima el potencial real del lote."
+            )
+            st.info(
+                "💡 Descargá el CSV de la serie en el panel de la derecha y subilo a la HF Space de VigorDAE. "
+                "Los valores reconstruidos pueden re-ingresarse al pipeline para recalcular el Score con datos auditados."
+            )
+
+    with col_audit:
+        st.markdown("**🧠 Capa 2 — VigorDAE**")
+        st.caption("Autoencoder LSTM para reconstrucción profunda de series satelitales.")
+        if df_hist is not None:
+            # Preparar CSV para VigorDAE (formato compatible con la HF Space)
+            csv_data = df_hist[["año", "ndvi", "score"]].to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 1. Descargar serie del lote",
+                data=csv_data,
+                file_name=f"serie_vigor_{lote_a}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                help="CSV con (año, ndvi, score) — formato esperado por VigorDAE."
+            )
+            st.markdown(
+                """
+                <a href="https://huggingface.co/spaces/sdarionicolas-boop/AgroIA-VigorDAE"
+                   target="_blank" style="text-decoration: none;">
+                  <button style="background-color: #3fb950; color: white; border: none;
+                                 padding: 8px 12px; border-radius: 4px; font-weight: bold;
+                                 width: 100%; cursor: pointer; margin-top: 8px;">
+                    🚀 2. Abrir VigorDAE LSTM
+                  </button>
+                </a>
+                """,
+                unsafe_allow_html=True
+            )
+
+    # ── Ficha de Alerta Temprana ─────────────────────────────────────────────
+    if df_hist is not None and len(df_hist) >= 2:
+        ndvi_actual = float(datos['ndvi'])
+        ndvi_hist_vals = pd.to_numeric(df_hist.iloc[:-1]['ndvi'], errors='coerce').dropna().tolist()
+        if ndvi_hist_vals:
+            from pipeline.agro_math import detectar_alerta_ndvi
+            alerta = detectar_alerta_ndvi(ndvi_actual, ndvi_hist_vals)
+            if alerta['alerta']:
+                st.error(f"🚨 **FICHA DE ALERTA TEMPRANA**\n\n{alerta['msg']}")
+            elif alerta['caida_pct'] > 5:
+                st.warning(f"⚠️ **Observación de Vigor:** Se detecta una tendencia a la baja del {alerta['caida_pct']}% respecto al promedio histórico.")
+
     sd = datos["score_desglose"]
     if sd:
         cols = st.columns(4)
@@ -596,19 +835,25 @@ elif modo == "🔍 Inspeccionar un Lote":
         cols[1].progress(int(sd.get("estabilidad", 0) / 30 * 100), text=f"Estabilidad: {sd.get('estabilidad', 0):.1f}/30")
         cols[2].progress(int(sd.get("limpieza", 0) / 20 * 100), text=f"Limpieza IA: {sd.get('limpieza', 0):.1f}/20")
         cols[3].progress(int(sd.get("clima", 0) / 10 * 100), text=f"Clima: {sd.get('clima', 0):.1f}/10")
-    if datos["zona_activa"]:
-        st.info(f"🗺️ Zonificación A/B/C activa — **{datos['puntos_zona_c']} puntos críticos** detectados en Zona C")
+    # ── Lógica de Estado de Zonificación ─────────────────────────────────────
+    # OUTPUTS_DIR es la única fuente de verdad para mapas/PDFs (Docker o local)
+    mapa_path = OUTPUTS_DIR / f"Mapa_{lote_a}.html"
+    mapa_existe = mapa_path.exists()
+
+    if datos.get("zona_activa") or (mapa_existe and datos.get("cv", 0) > 0.05):
+        st.info(f"🗺️ **Zonificación A/B/C activa** — Se detectaron variaciones significativas de vigor. **{datos.get('puntos_zona_c', 0)} puntos críticos** en Zona C.")
+    elif datos.get("cv") is not None and datos.get("cv") < 0.05:
+        st.success("✅ **Lote Homogéneo** — La variabilidad espacial es baja. No requiere manejo diferenciado.")
+    elif mapa_existe:
+         st.info(f"🗺️ **Mapa de Variabilidad disponible** — Inspeccioná el mapa detallado para ver la distribución de vigor.")
     else:
-        st.success("✅ Lote homogéneo — sin zonas diferenciadas")
+        st.warning("⏳ **Zonificación Pendiente** — El análisis de variabilidad espacial requiere el procesamiento de imágenes de alta resolución (Sentinel-2).")
     
     # ── Visualización de Mapa Detallado ──────────────────────────────────────
     st.divider()
     st.subheader("🗺️ Mapa Detallado de Lote")
-    # Los mapas se generan en src/outputs porque la app corre con CWD=src
-    outputs_dir = Path(__file__).resolve().parent / "outputs"
-    mapa_path = outputs_dir / f"Mapa_{lote_a}.html"
     
-    if mapa_path.exists():
+    if mapa_existe:
         with open(mapa_path, "r", encoding="utf-8") as f:
             html_content = f.read()
             components.html(html_content, height=500, scrolling=True)
@@ -757,93 +1002,160 @@ elif modo == "🏆 Ranking Global":
 elif modo == "🛰️ Siniestros (Eventualidades)":
     st.subheader("🛰️ Evaluación Satelital de Siniestros (Eventualidades)")
     st.markdown("""
-    Este módulo evalúa el impacto de eventos climáticos (granizo, viento, etc.) comparando 
-    la salud del cultivo **antes y después** de una fecha específica, ponderada por su etapa fenológica.
+    Este módulo evalúa el impacto de eventos climáticos comparando la salud del cultivo 
+    **antes y después** del siniestro, con delineación automática de lotes (SAM).
     """)
 
     # Inicializar estado si no existe
     if 'siniestro_res' not in st.session_state:
         st.session_state.siniestro_res = None
+    if 'gdf_ev_cache' not in st.session_state:
+        st.session_state.gdf_ev_cache = None
 
     with st.expander("📝 Configuración del Análisis", expanded=st.session_state.siniestro_res is None):
-        col1, col2 = st.columns(2)
-        with col1:
-            fecha_ev = st.date_input("Fecha del Evento", value=datetime.now() - timedelta(days=30))
-            tipo_ev = st.selectbox("Tipo de Evento", ["granizo", "viento", "inundacion", "sequia", "helada"])
-        with col2:
-            cultivo_ev = st.selectbox("Cultivo afectado", ["maiz", "soja", "trigo", "girasol", "cebada"])
-            nombre_caso = st.text_input("Nombre del Caso / Referencia", "Siniestro_001")
+        st.info("💡 **Formatos:** ZIP (Shapefile), GeoJSON, KML o KMZ.")
+        up_file = st.file_uploader("Subir Polígono o Puntos del Lote", type=["geojson", "kml", "kmz", "shp", "zip"])
 
-        st.info("💡 **Nota sobre Shapefiles:** Si usas formato SHP, subí un archivo **.zip** que contenga todos los archivos (.shp, .shx, .dbf).")
-        up_file = st.file_uploader("Subir Polígono del Lote (GeoJSON, KML, KMZ, ZIP)", type=["geojson", "kml", "kmz", "shp", "zip"])
+        if up_file:
+            # Cargar archivo a memoria (cachear para no re-leer)
+            suffix = Path(up_file.name).suffix
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(up_file.getvalue())
+                tmp_path = tmp.name
 
-        btn_run = st.button("🚀 Ejecutar Peritaje Satelital", type="primary", disabled=not up_file)
-        if st.session_state.siniestro_res is not None:
-            if st.button("🧹 Limpiar Resultados"):
-                st.session_state.siniestro_res = None
-                st.rerun()
-
-    if up_file and btn_run:
-        # Guardar archivo temporal
-        suffix = Path(up_file.name).suffix
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(up_file.getvalue())
-            tmp_path = tmp.name
-
-        try:
-            with st.spinner("⏳ Analizando imágenes Sentinel-2 y Baseline histórico..."):
-                # Inicializar GEE
-                from src.pipeline.gee_extractor import init_gee
-                init_gee(project_id=settings.gee_project_id)
-
-                # Cargar geometría
-                try:
-                    if suffix.lower() in ['.kml', '.kmz', '.zip']:
-                        read_path = tmp_path
-                        if suffix.lower() in ['.zip', '.kmz']: read_path = f"zip://{tmp_path}"
-                        gdf_ev = gpd.read_file(read_path)
-                    else:
-                        # Para SHP sueltos, intentar restaurar SHX si falta
-                        try:
-                            import fiona
-                            with fiona.Env(SHAPE_RESTORE_SHX='YES'):
-                                gdf_ev = gpd.read_file(tmp_path)
-                        except:
-                            gdf_ev = gpd.read_file(tmp_path)
-                except Exception as e:
-                    if suffix.lower() in ['.kml', '.kmz']:
-                        st.info("⚠ Driver KML no detectado. Usando parser manual...")
-                        from src.utils.kml_fallback import parse_kml_manual
-                        manual_data = parse_kml_manual(tmp_path)
-                        if manual_data:
-                            tmp_json = f"{tmp_path}_tmp.json"
-                            with open(tmp_json, 'w') as f: json.dump(manual_data, f)
-                            gdf_ev = gpd.read_file(tmp_json)
-                            os.remove(tmp_json)
-                        else:
-                            raise ValueError("No se pudo parsear el archivo KML de forma manual.")
-                    else:
-                        raise e
-
-                geom_ee, coords = cargar_poligono_desde_gdf(gdf_ev)
-
-                # Ejecutar Pipeline
-                res = run_eventualidades(
-                    geom_ee=geom_ee,
-                    fecha_evento=fecha_ev.strftime('%Y-%m-%d'),
-                    cultivo=cultivo_ev,
-                    tipo_evento=tipo_ev,
-                    caso_nombre=nombre_caso
-                )
+            try:
+                # Intentar leer el archivo
+                read_path = tmp_path
+                if suffix.lower() in ['.zip', '.kmz']: read_path = f"zip://{tmp_path}"
                 
-                # Guardar en session state para persistencia
-                st.session_state.siniestro_res = res
-                st.rerun() # Forzar refresco para mostrar resultados fuera del bloque del botón
+                try:
+                    import fiona
+                    with fiona.Env(SHAPE_RESTORE_SHX='YES'):
+                        gdf_raw = gpd.read_file(read_path)
+                except:
+                    gdf_raw = gpd.read_file(read_path)
+                
+                if gdf_raw.crs is None:
+                    gdf_raw = gdf_raw.set_crs("EPSG:4326")
+                elif gdf_raw.crs.to_epsg() != 4326:
+                    gdf_raw = gdf_raw.to_crs("EPSG:4326")
+                
+                st.session_state.gdf_ev_cache = gdf_raw
+            except Exception as e:
+                # Fallback KML manual
+                if suffix.lower() in ['.kml', '.kmz']:
+                    from src.utils.kml_fallback import parse_kml_manual
+                    manual_data = parse_kml_manual(tmp_path)
+                    if manual_data:
+                        tmp_json = f"{tmp_path}_tmp.json"
+                        with open(tmp_json, 'w') as f: json.dump(manual_data, f)
+                        st.session_state.gdf_ev_cache = gpd.read_file(tmp_json)
+                        os.remove(tmp_json)
+                    else:
+                        st.error(f"No se pudo parsear el archivo: {e}")
+                else:
+                    st.error(f"Error al leer archivo: {e}")
+            finally:
+                if os.path.exists(tmp_path): os.remove(tmp_path)
 
-        except Exception as e:
-            st.error(f"❌ Error en el análisis: {e}")
-        finally:
-            if os.path.exists(tmp_path): os.remove(tmp_path)
+        # Si tenemos datos cargados, configurar el peritaje
+        if st.session_state.gdf_ev_cache is not None:
+            gdf = st.session_state.gdf_ev_cache
+            st.write(f"📂 Archivo con **{len(gdf)}** registro(s) detectado.")
+            
+            # Selector de punto/lote si hay varios
+            id_col = next((c for c in gdf.columns if c.lower() in ['name', 'id', 'lote', 'nombre']), gdf.columns[0])
+            options = [f"{i}: {row[id_col]}" for i, row in gdf.iterrows()]
+            selected_idx = st.selectbox("Seleccionar registro a analizar:", range(len(options)), format_func=lambda x: options[x])
+            
+            # Extraer fila seleccionada
+            target_row = gdf.iloc[[selected_idx]]
+            
+            # Autodetectar Fecha
+            date_col = next((c for c in gdf.columns if c.lower() in ['fecha_de_s', 'fecha', 'timestamp', 'date']), None)
+            default_date = datetime.now() - timedelta(days=30)
+            if date_col and pd.notna(target_row.iloc[0][date_col]):
+                val = target_row.iloc[0][date_col]
+                try:
+                    if isinstance(val, str): 
+                        # Intentar formatos comunes
+                        for fmt in ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y']:
+                            try:
+                                default_date = datetime.strptime(val, fmt)
+                                break
+                            except: continue
+                    else: default_date = pd.to_datetime(val)
+                    st.success(f"📅 Fecha detectada en archivo: **{default_date.strftime('%d/%m/%Y')}**")
+                except: pass
+
+            # Autodetectar Cultivo
+            cult_col = next((c for c in gdf.columns if c.lower() in ['cultivo', 'crop']), None)
+            cult_list = ["maiz", "soja", "trigo", "girasol", "cebada"]
+            default_cult_idx = 0
+            if cult_col and pd.notna(target_row.iloc[0][cult_col]):
+                c_val = str(target_row.iloc[0][cult_col]).lower()
+                if c_val in cult_list: default_cult_idx = cult_list.index(c_val)
+                st.success(f"🌾 Cultivo detectado en archivo: **{c_val.capitalize()}**")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                fecha_ev = st.date_input("Confirmar Fecha del Siniestro", value=default_date)
+                tipo_ev = st.selectbox("Tipo de Siniestro", ["granizo", "viento", "inundacion", "sequia", "helada"])
+            with col2:
+                cultivo_ev = st.selectbox("Confirmar Cultivo", cult_list, index=default_cult_idx)
+                nombre_caso = st.text_input("Nombre de Referencia", f"Siniestro_{target_row.iloc[0][id_col]}")
+
+            btn_run = st.button("🚀 Ejecutar Peritaje Inteligente", type="primary")
+            
+            if st.session_state.siniestro_res is not None:
+                if st.button("🧹 Limpiar Resultados"):
+                    st.session_state.siniestro_res = None
+                    st.rerun()
+
+            if btn_run:
+                try:
+                    with st.spinner("⏳ Iniciando Pipeline: Delineación SAM + Análisis Copernicus CDSE..."):
+                        # Inicializar EODAG
+                        from src.pipeline.eodag_extractor import init_eodag
+                        init_eodag()
+
+                        # ── INTEGRACIÓN SAM: Delineación automática si el input es un Punto ──
+                        import time
+                        gdf_ev = target_row.copy()
+                        geom_type = gdf_ev.geometry.iloc[0].geom_type
+                        
+                        if geom_type == 'Point':
+                            st.info("📍 Punto GPS detectado. Delineando lote con SAM...")
+                            pt = gdf_ev.geometry.iloc[0]
+                            temp_csv = os.path.join(tempfile.gettempdir(), f"sam_st_{int(time.time())}.csv")
+                            pd.DataFrame([{'id': nombre_caso, 'lat': pt.y, 'lon': pt.x, 'fecha': fecha_ev.strftime('%Y-%m-%d')}]).to_csv(temp_csv, index=False)
+                            
+                            from Poligonizacion.poligonizador_final import AgroIAPipeline
+                            poly_pipe = AgroIAPipeline()
+                            poly_pipe.cargar_datos(temp_csv)
+                            out_prefix = os.path.join(tempfile.gettempdir(), f"sam_out_{int(time.time())}")
+                            poly_pipe.ejecutar(output_prefix=out_prefix)
+                            
+                            geojson_path = f"{out_prefix}.geojson"
+                            if os.path.exists(geojson_path):
+                                gdf_ev = gpd.read_file(geojson_path)
+                                st.success(f"✅ Lote delineado: {gdf_ev.iloc[0].get('area_ha', 0):.1f} ha")
+                            else: raise ValueError("SAM no pudo delinear el lote.")
+                            if os.path.exists(temp_csv): os.remove(temp_csv)
+
+                        # ── Análisis Satelital ──
+                        geom_ee, coords = cargar_poligono_desde_gdf(gdf_ev)
+                        res = run_eventualidades(
+                            geom_shapely=geom_ee,
+                            fecha_evento=fecha_ev.strftime('%Y-%m-%d'),
+                            cultivo=cultivo_ev,
+                            tipo_evento=tipo_ev,
+                            caso_nombre=nombre_caso
+                        )
+                        st.session_state.siniestro_res = res
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
 
     # ── Mostrar Resultados (si existen en el estado) ─────────────────────────
     if st.session_state.siniestro_res:

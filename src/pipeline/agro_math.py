@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.ensemble import IsolationForest
-from .gee_extractor import get_gee_ndvi
+from .eodag_extractor import get_eodag_ndvi
 
 CONFIG = {
     "maiz": {
@@ -47,6 +47,39 @@ CONFIG = {
         "ndvi_min":      0.22,
         "ndvi_max":      0.85,
     },
+    "cebada": {
+        "tbase":         0,
+        "umbral_calor":  30,
+        "umbral_clima":  30,
+        "mes_critico":   10,
+        "pesos": {6: 0.1, 7: 0.2, 8: 0.4, 9: 1.0, 10: 1.0, 11: 0.5},
+        "color":         "#5C8001",
+        "biblio":        "INTA Pergamino / Cebada Cervecera",
+        "ndvi_min":      0.20,
+        "ndvi_max":      0.88,
+    },
+    "sorgo": {
+        "tbase":         10,
+        "umbral_calor":  38,
+        "umbral_clima":  45,
+        "mes_critico":   1,
+        "pesos": {11: 0.2, 12: 0.5, 1: 1.0, 2: 0.8, 3: 0.4, 4: 0.1},
+        "color":         "#B56576",
+        "biblio":        "INTA Manfredi",
+        "ndvi_min":      0.22,
+        "ndvi_max":      0.88,
+    },
+    "mani": {
+        "tbase":         10,
+        "umbral_calor":  35,
+        "umbral_clima":  35,
+        "mes_critico":   2,
+        "pesos": {11: 0.2, 12: 0.6, 1: 1.0, 2: 1.0, 3: 0.8, 4: 0.3},
+        "color":         "#D4A373",
+        "biblio":        "INTA Manfredi / Univ. Nac. Cordoba",
+        "ndvi_min":      0.20,
+        "ndvi_max":      0.85,
+    },
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +111,17 @@ TABLA_FENOLOGICA = {
     ('girasol', 1): ('Floracion / llenado (R5-R7)',            1.0),
     ('girasol', 2): ('Madurez / cosecha (R8-R9)',              0.3),
     ('girasol',12): ('Vegetativo (V4-V10)',                    0.5),
+    ('sorgo',  11): ('Emergencia / Crecimiento inicial',       0.3),
+    ('sorgo',  12): ('Panojamientos (vegetativo tardío)',      0.6),
+    ('sorgo',   1): ('Floración / Llenado de grano (crítico)', 1.0),
+    ('sorgo',   2): ('Llenado / Madurez (grano pastoso)',      0.7),
+    ('sorgo',   3): ('Madurez fisiológica / Cosecha',          0.3),
+    ('mani',   11): ('Siembra / Emergencia (VE-V3)',           0.3),
+    ('mani',   12): ('Vegetativo / Floración (V4-R1)',         0.6),
+    ('mani',    1): ('Clavado / Formación de vainas (R2-R4)',  1.0),
+    ('mani',    2): ('Llenado de vainas (R5-R7, crítico)',     1.0),
+    ('mani',    3): ('Madurez fisiológica (R8)',               0.5),
+    ('mani',    4): ('Cosecha / Arrancado (R9)',               0.2),
 }
 
 FACTOR_CONSERVADOR = 0.92
@@ -104,14 +148,14 @@ def validar_ndvi(ndvi_val, cultivo, year, mes):
         return 'sospechoso_alto', f"⚠ {year}/{mes:02d}: NDVI={ndvi_val:.3f} muy alto."
     return 'ok', f"✓ {year}/{mes:02d}: NDVI={ndvi_val:.3f} plausible."
 
-def get_gee_ndvi_validado(geom_ee, year, month, cultivo):
-    """Obtiene NDVI de GEE y lo valida inmediatamente."""
+def get_ndvi_validado(geom_shapely, year, month, cultivo):
+    """Obtiene NDVI de CDSE/EODAG y lo valida inmediatamente."""
     try:
-        val = get_gee_ndvi(geom_ee, year, month)
+        val = get_eodag_ndvi(geom_shapely, year, month)
         status, msg = validar_ndvi(val, cultivo, year, month)
         if status in ('sospechoso_bajo', 'nulo'): return None, status, msg
         return val, status, msg
-    except Exception as e: return None, 'error', f"Error GEE: {e}"
+    except Exception as e: return None, 'error', f"Error EODAG: {e}"
 
 def calcular_score(ndvi_critico, horas_calor, ndvi_historico, umbral_clima=40):
     """Calcula el Score AgroIA (0-100)."""
@@ -133,3 +177,26 @@ def calcular_score(ndvi_critico, horas_calor, ndvi_historico, umbral_clima=40):
     
     return {"total": total, "vigor": round(vigor, 1), "estabilidad": round(estabilidad, 1),
             "limpieza": round(limpieza, 1), "clima": round(clima, 1)}
+
+def detectar_alerta_ndvi(ndvi_actual, ndvi_historico):
+    """
+    Detecta anomalías negativas de vigor comparando el NDVI actual vs el promedio histórico.
+    Activa alerta si la caída es >= 15%.
+    """
+    if not ndvi_historico or len(ndvi_historico) < 2:
+        return {"alerta": False, "caida_pct": 0, "msg": "Sin historial suficiente"}
+        
+    promedio = sum(ndvi_historico) / len(ndvi_historico)
+    if promedio <= 0: return {"alerta": False, "caida_pct": 0, "msg": "Promedio inválido"}
+    
+    caida = (promedio - ndvi_actual) / promedio
+    caida_pct = round(caida * 100, 1)
+    
+    if caida_pct >= 15.0:
+        return {
+            "alerta": True,
+            "caida_pct": caida_pct,
+            "msg": f"ALERTA CRÍTICA: Caída de vigor del {caida_pct}% respecto al promedio histórico ({promedio:.3f}). Posible anomalía de rendimiento."
+        }
+    
+    return {"alerta": False, "caida_pct": caida_pct, "msg": "Vigor dentro de rangos normales."}

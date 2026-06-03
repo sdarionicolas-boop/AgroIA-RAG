@@ -30,29 +30,39 @@ def parse_kml_manual(file_path):
         ns = {'kml': 'http://www.opengis.net/kml/2.2'}
         
         features = []
-        # Buscar todos los Placemarks que tengan polígonos
+        # Buscar todos los Placemarks
         for pm in root.findall('.//kml:Placemark', ns):
-            name = pm.find('kml:name', ns)
-            name_str = name.text if name is not None else "Lote_KML"
+            # Prioridad de nombre: <name> o el id del placemark
+            name_node = pm.find('kml:name', ns)
+            name_str = name_node.text if name_node is not None else pm.get('id', "Lote_KML")
             
-            # Buscar coordenadas de polígono
-            coords_node = pm.find('.//kml:coordinates', ns)
-            if coords_node is not None:
+            # Buscar todos los nodos de coordenadas dentro de este Placemark
+            # Esto maneja Polygon, MultiGeometry, etc.
+            coords_nodes = pm.findall('.//kml:coordinates', ns)
+            
+            for coords_node in coords_nodes:
                 coords_text = coords_node.text.strip()
+                if not coords_text: continue
+                
                 # KML: lon,lat,alt lon,lat,alt ...
                 coords = []
                 for p in coords_text.split():
                     parts = p.split(',')
                     if len(parts) >= 2:
-                        coords.append((float(parts[0]), float(parts[1])))
+                        try:
+                            coords.append((float(parts[0]), float(parts[1])))
+                        except: continue
                 
                 if len(coords) >= 3:
-                    poly = Polygon(coords)
-                    features.append({
-                        "type": "Feature",
-                        "properties": {"id": name_str, "cultivo": "maiz"},
-                        "geometry": mapping(poly)
-                    })
+                    try:
+                        poly = Polygon(coords)
+                        if poly.is_valid:
+                            features.append({
+                                "type": "Feature",
+                                "properties": {"id": name_str, "cultivo": "maiz"},
+                                "geometry": mapping(poly)
+                            })
+                    except: continue
         
         if not features:
             return None

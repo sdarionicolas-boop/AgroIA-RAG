@@ -206,24 +206,11 @@ async def historial_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-async def manejar_texto_libre(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = update.message.text
-    
-    # Mapear botones del teclado principal a funciones
-    if texto == "📋 Mis Lotes":
-        return await listar_lotes_cmd(update, context)
-    if texto == "🚜 Lote Activo":
-        return await ver_lote_activo_info(update, context)
-    if texto == "📊 Ver Historial":
-        return await historial_cmd(update, context)
-    if texto == "❓ Ayuda":
-        return await ayuda(update, context)
-    
-    # Si no es un botón, es una pregunta para la IA
-    await manejar_pregunta(update, context)
-
-# (mantener funciones originales: _extraer_lote_del_texto, manejar_pregunta, etc. pero integrarlas)
-
+async def manejar_pregunta(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handler para preguntas libres a la IA.
+    Identifica el lote automáticamente o usa el de la sesión.
+    """
     texto = update.message.text.strip()
     user_id = update.effective_user.id
     logger.info(f"Usuario {user_id}: '{texto}'")
@@ -262,6 +249,22 @@ async def manejar_texto_libre(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         logger.error(f"Error procesando pregunta: {e}")
         await update.message.reply_text("⚠️ Ocurrió un error. Reintentá en unos segundos.")
+
+async def manejar_texto_libre(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = update.message.text
+    
+    # Mapear botones del teclado principal a funciones
+    if texto == "📋 Mis Lotes":
+        return await listar_lotes_cmd(update, context)
+    if texto == "🚜 Lote Activo":
+        return await ver_lote_activo_info(update, context)
+    if texto == "📊 Ver Historial":
+        return await historial_cmd(update, context)
+    if texto == "❓ Ayuda":
+        return await ayuda(update, context)
+    
+    # Si no es un botón, es una pregunta para la IA
+    await manejar_pregunta(update, context)
 
 
 # ============================================================================

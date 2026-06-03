@@ -8,10 +8,18 @@ services:
       - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - OLLAMA_URL=http://host.docker.internal:11434
+      - API_URL=http://api:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
       - ./logs:/app/logs
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./outputs:/app/outputs
+      - ./Poligonizacion:/app/Poligonizacion
+      - ./sam_vit_b_01ec64.pth:/app/sam_vit_b_01ec64.pth
     command: ["python", "-m", "uvicorn", "src.ingesta.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
   streamlit:
@@ -23,6 +31,16 @@ services:
       - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - OLLAMA_URL=http://host.docker.internal:11434
+      - API_URL=http://api:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8501:8501"
+    volumes:
+      - ./logs:/app/logs
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./outputs:/app/outputs
+      - ./Poligonizacion:/app/Poligonizacion
+      - ./sam_vit_b_01ec64.pth:/app/sam_vit_b_01ec64.pth
     command: ["streamlit", "run", "src/streamlit_app.py", "--server.address=0.0.0.0"]

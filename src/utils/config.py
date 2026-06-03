@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from functools import lru_cache
 
+from pydantic import Field
+
 class Settings(BaseSettings):
     # === Base de Datos ===
     db_host: str = "localhost"
@@ -16,7 +18,9 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     generation_model: str = "gemma3:4b"
     
-    # === Telegram & Seguridad ===
+    # === API & Seguridad ===
+    api_url: str = Field("http://localhost:8000", alias="API_URL")
+    api_port: int = 8000
     telegram_token: str = ""
     ingesta_secret_key: str = ""
 

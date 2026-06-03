@@ -1,17 +1,9 @@
 """
 =============================================================================
 AGROIA - POLIGONIZACIÓN AUTOMÁTICA DE LOTES
-Pipeline Unificado v2.0 (Pro)
+Pipeline Unificado v2.5 (Soberano - Copernicus Native)
 
-Este script unifica las versiones Local (CPU/GPU) y Colab, optimizando:
-1. Detección automática de hardware (CUDA/CPU).
-2. Control de fugas avanzado en SAM (puntos negativos dinámicos).
-3. Integración robusta con GEE (Sentinel-2 Harmonized).
-4. Generación de reportes: GeoJSON, CSV, PDF y Mapa HTML interactivo.
-5. Soporte para entrada CSV y Excel (.xlsx).
-
-Autor: AgroIA Team
-Tecnología: Google Earth Engine + Segment Anything Model (SAM)
+MIGRADO: Se eliminó GEE. Usa Processing API de Copernicus CDSE.
 =============================================================================
 """
 
@@ -20,26 +12,21 @@ import sys
 import json
 import time
 import math
-import argparse
+import calendar
 import warnings
-import traceback
+import requests
+import argparse
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.cm as cm
 import cv2
-
-# Detección de Colab para progreso visual
-try:
-    from google.colab import drive
-    IN_COLAB = True
-    from tqdm.notebook import tqdm
-except ImportError:
-    IN_COLAB = False
-    from tqdm import tqdm
+import rasterio
+from shapely.geometry import Polygon, mapping, shape, Point
 
 # Detección de Hardware
 try:
@@ -49,19 +36,22 @@ except ImportError:
     DEVICE = 'cpu'
 
 try:
-    import ee
     import geopandas as gpd
-    from shapely.geometry import Polygon, mapping, shape
     from segment_anything import sam_model_registry, SamPredictor
 except ImportError as e:
-    print(f"❌ Falta libreria: {e}")
-    print("   Ejecutar: pip install segment-anything earthengine-api geopandas shapely opencv-python-headless pandas numpy matplotlib tqdm scipy fpdf2 folium")
-    sys.exit(1)
+    print(f"⚠ Alerta de libreria: {e}")
 
 warnings.filterwarnings('ignore')
 matplotlib.use('Agg')
 cmap = matplotlib.colormaps['RdYlGn']
 
+# Importar configuración y tokens
+try:
+    from src.utils.config import settings
+    from src.pipeline.eodag_extractor import get_cdse_token
+except ImportError:
+    # Fallback si se corre fuera del entorno src
+    settings = None
 
 # ============================================================================
 # CONFIGURACIÓN GLOBAL
@@ -69,13 +59,6 @@ cmap = matplotlib.colormaps['RdYlGn']
 
 class Config:
     """Configuración centralizada del pipeline."""
-
-    GEE = {
-        'project': 'applied-oxygen-459415-e2',
-        'buffer_m': 2500,
-        'max_nubes_pct': 20,
-        'dias_ventana': 60,
-    }
 
     SAM = {
         'checkpoint': 'sam_vit_b_01ec64.pth',
@@ -90,79 +73,18 @@ class Config:
         'margen_px_min': 20,
         'margen_px_max': 80,
         'factor_suavizado': 0.005,
-    }
-
-    OUTPUT = {
-        'guardar_cada': 10,
-        'fecha_fallback_inicio': '2025-12-01',
-        'fecha_fallback_fin': '2026-03-31',
+        'buffer_m': 1500, # Radio de búsqueda alrededor del punto
     }
 
     COLUMNS = {
-        'id': ['id', 'taype', 'numero', 'nro', 'lote_id'],
+        'id': ['id', 'taype', 'numero', 'nro', 'lote_id', 'nombre'],
         'lat': ['lat_dec', 'latitude', 'lat', 'cg_latitud', 'y', 'latitud'],
-        'lon': ['lon_dec', 'longitude', 'lon', 'cg_longitud', 'x', 'longitud'],
+        'lon': ['lon_dec', 'longitude', 'lon', 'cg_longitud', 'x', 'longitud', 'lng'],
         'fecha': ['fecha_de_s', 'fecha', 'date', 'fecha_siniestro', 'fecha_evento'],
-        'dano_ha': ['has__daña', 'dano_ha', 'dano_estimado', 'area_ha', 'sup_afectada_ha', 'superficie', 'area'],
+        'dano_ha': ['has__daña', 'dano_ha', 'dano_estimado', 'area_ha', 'sup_afectada_ha', 'superficie', 'area', 'ha'],
         'cultivo': ['cultivo', 'crop', 'cultivoafectado', 'especie'],
         'localidad': ['localidad', 'location', 'loc', 'ciudad', 'departamento'],
-        'provincia': ['provincia', 'prov', 'estado'],
     }
-
-
-# ============================================================================
-# UTILIDADES DE DATOS
-# ============================================================================
-
-def parse_decimal(val):
-    """Convierte valores numéricos manejando formatos europeos y errores."""
-    if pd.isna(val):
-        return np.nan
-    if isinstance(val, (int, float)):
-        return float(val)
-    s = str(val).strip().replace(',', '.')
-    if s.count('.') > 1:
-        parts = s.split('.')
-        s = ''.join(parts[:-1]) + '.' + parts[-1]
-    try:
-        return float(s)
-    except:
-        return np.nan
-
-
-def encontrar_columna(patrones, columnas):
-    """Mapea columnas del archivo a los nombres internos esperados."""
-    for p in patrones:
-        for col in columnas:
-            if col is not None and str(col).strip():
-                if p in str(col).strip().lower():
-                    return col
-    return None
-
-
-def bounding_box_dinamico(area_ref, shape_hw):
-    """Calcula el zoom óptimo para SAM basado en el tamaño esperado del lote."""
-    lado_m = math.sqrt(max(area_ref, 1) * 10000)
-    margen = int((lado_m / 2) / 10) # 10m/px aprox en S2
-    margen = max(Config.POLYGON['margen_px_min'],
-                min(margen, Config.POLYGON['margen_px_max']))
-    h, w = shape_hw
-    cx, cy = w // 2, h // 2
-    return np.array([max(0, cx-margen), max(0, cy-margen), 
-                     min(w-1, cx+margen), min(h-1, cy+margen)])
-
-
-def pixel_a_geo(col, row, lon_min, lon_max, lat_min, lat_max, w, h):
-    """Interpolación lineal para convertir píxel a coordenadas geográficas."""
-    lon = lon_min + (col / w) * (lon_max - lon_min)
-    lat = lat_max - (row / h) * (lat_max - lat_min)
-    return (lon, lat)
-
-
-def calcular_area_ha(poligono, lat_centro):
-    """Cálculo de área geodésica simplificada en hectáreas."""
-    factor = math.cos(math.radians(lat_centro))
-    return poligono.area * (111320 ** 2) * factor / 10000
 
 
 def ndvi_a_rgb(ndvi):
@@ -171,59 +93,78 @@ def ndvi_a_rgb(ndvi):
     ndvi_norm = ((ndvi_clip + 0.2) * 255).astype(np.uint8)
     return (cmap(ndvi_norm / 255.0)[:, :, :3] * 255).astype(np.uint8)
 
+def pixel_a_geo(col, row, transform):
+    """Convierte píxel a coordenadas geográficas usando la matriz de transformación."""
+    lon, lat = transform * (col, row)
+    return (lon, lat)
 
-# ============================================================================
-# CLASES MOTOR (GEE + SAM)
-# ============================================================================
 
-class EngineSatelital:
-    """Maneja la conexión y descarga de Google Earth Engine."""
-    def __init__(self, config=None):
-        self.config = config or Config.GEE
-        self.conectado = False
+class EngineCopernicus:
+    """Maneja la descarga de imágenes minúsculas vía Processing API."""
+    
+    def __init__(self):
+        self.token = None
 
     def conectar(self):
-        if self.conectado: return True
-        try:
-            ee.Initialize(project=self.config['project'])
-            self.conectado = True
-            return True
-        except:
-            try:
-                ee.Authenticate()
-                ee.Initialize(project=self.config['project'])
-                self.conectado = True
-                return True
-            except Exception as e:
-                print(f"❌ Error GEE: {e}")
-                return False
+        self.token = get_cdse_token()
+        return self.token is not None
 
-    def descargar_ndvi(self, lat, lon, f_ini, f_fin):
-        """Descarga la mejor escena S2 disponible en el rango."""
-        try:
-            centro = ee.Geometry.Point([lon, lat])
-            bbox = centro.buffer(self.config['buffer_m']).bounds()
-            
-            # S2_HARMONIZED es más estable para series temporales
-            coleccion = (ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
-                        .filterBounds(bbox)
-                        .filterDate(f_ini, f_fin)
-                        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', self.config['max_nubes_pct']))
-                        .sort('CLOUDY_PIXEL_PERCENTAGE'))
+    def descargar_ndvi_point(self, lat, lon, year=2024, month=1):
+        """Descarga un recorte de 2km x 2km alrededor del punto."""
+        if not self.token and not self.conectar():
+            return None, None, None
 
-            if coleccion.size().getInfo() == 0: return None, None
+        # Definir bbox de 2km (~0.02 grados)
+        delta = 0.012 
+        bbox = [lon - delta, lat - delta, lon + delta, lat + delta]
+        last_day = calendar.monthrange(year, month)[1]
+
+        evalscript = """
+        //VERSION=3
+        function setup() {
+          return {
+            input: ["B04", "B08", "SCL"],
+            output: { id: "default", bands: 1, sampleType: "FLOAT32" }
+          };
+        }
+        function evaluatePixel(samples) {
+          let ndvi = (samples.B08 - samples.B04) / (samples.B08 + samples.B04);
+          let isCloud = samples.SCL === 3 || samples.SCL === 8 || samples.SCL === 9 || samples.SCL === 10;
+          return isCloud ? [-1] : [ndvi];
+        }
+        """
+
+        payload = {
+            "input": {
+                "bounds": {
+                    "bbox": bbox,
+                    "properties": {"crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"}
+                },
+                "data": [{
+                    "type": "S2L2A",
+                    "dataFilter": {"timeRange": {"from": f"{year}-{month:02d}-01T00:00:00Z", "to": f"{year}-{month:02d}-{last_day:02d}T23:59:59Z"}}
+                }]
+            },
+            "output": {"resx": 0.0001, "resy": 0.0001, "responses": [{"identifier": "default", "format": {"type": "image/tiff"}}]},
+            "evalscript": evalscript
+        }
+
+        try:
+            resp = requests.post('https://sh.dataspace.copernicus.eu/api/v1/process', 
+                                 headers={'Authorization': f'Bearer {self.token}'}, json=payload, timeout=60)
             
-            img = coleccion.first()
-            datos = img.select(['B4', 'B8']).sampleRectangle(region=bbox, defaultValue=0)
+            if resp.status_code != 200:
+                print(f"    ❌ Error Processing API: {resp.status_code} - {resp.text}")
+                return None, None, None
             
-            rojo = np.array(datos.get('B4').getInfo(), dtype=np.float32)
-            nir = np.array(datos.get('B8').getInfo(), dtype=np.float32)
-            ndvi = (nir - rojo) / (nir + rojo + 1e-6)
-            
-            return ndvi, bbox
+            with rasterio.MemoryFile(resp.content) as memfile:
+                with memfile.open() as dataset:
+                    data = dataset.read(1)
+                    transform = dataset.transform
+            return data, transform, bbox
         except Exception as e:
-            print(f"  ⚠ Error descarga ({lat}, {lon}): {e}")
-            return None, None
+            print(f"    ❌ Excepción en descarga: {e}")
+            return None, None, None
 
 
 class SegmentadorSAM:
@@ -234,247 +175,133 @@ class SegmentadorSAM:
 
     def cargar(self):
         if self.predictor: return True
+        # Buscar el checkpoint en la raíz (donde lo montamos en Docker)
         cp = self.config['checkpoint']
-        
-        # Intentar encontrar el checkpoint en el root si no está en el CWD
         if not os.path.exists(cp):
-            root_dir = Path(__file__).resolve().parent.parent
-            cp_root = root_dir / cp
-            if cp_root.exists():
-                cp = str(cp_root)
-            else:
-                print(f"📥 Descargando SAM ({self.config['model_type']})...")
-                os.system(f'wget -q https://dl.fbaipublicfiles.com/segment_anything/{cp}')
+            # Probar en el padre si estamos en Poligonizacion/
+            cp = os.path.join("..", self.config['checkpoint'])
+        
+        if not os.path.exists(cp):
+            print(f"📥 Checkpoint {cp} no encontrado.")
+            return False
         
         try:
             sam = sam_model_registry[self.config['model_type']](checkpoint=cp)
             sam.to(self.config['device'])
             self.predictor = SamPredictor(sam)
-            print(f"✅ SAM listo en {self.config['device'].upper()}")
             return True
         except Exception as e:
             print(f"❌ Error SAM: {e}")
             return False
 
-    def segmentar(self, ndvi, area_ref, bbox_ee=None):
-        """Segmenta con control de fugas automático."""
-        if not self.predictor: return {'status': 'SAM_ERROR'}
+    def segmentar(self, ndvi, transform):
+        if not self.predictor: return None
         
         h, w = ndvi.shape
         self.predictor.set_image(ndvi_a_rgb(ndvi))
         
-        box = bounding_box_dinamico(area_ref, (h, w))
+        # Punto central (donde está el usuario)
         cx, cy = w // 2, h // 2
         
-        # Intento 1: Detección estándar
         masks, scores, _ = self.predictor.predict(
             point_coords=np.array([[cx, cy]]),
             point_labels=np.array([1]),
-            box=box[None, :],
             multimask_output=True
         )
         
         idx = np.argmax(scores)
-        mask = masks[idx].copy()
-        score = float(scores[idx])
-        area_px = mask.sum()
-        area_ha_aprox = (area_px * 100) / 10000 # 10m res
+        mask = masks[idx]
         
-        # Refinamiento si hay fuga (área mucho mayor a la esperada)
-        if area_ha_aprox > area_ref * Config.POLYGON['tolerancia_fuga']:
-            x0, y0, x1, y1 = box
-            # Puntos negativos en las esquinas del BBox sugerido
-            pts_neg = np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
-            coords = np.vstack([[cx, cy], pts_neg])
-            labels = np.array([1, 0, 0, 0, 0])
-            
-            m2, s2, _ = self.predictor.predict(
-                point_coords=coords, point_labels=labels,
-                box=box[None, :], multimask_output=False
-            )
-            mask, score = m2[0].copy(), float(s2[0])
-            area_ha_aprox = (mask.sum() * 100) / 10000
-
-        # Vectorización
-        contornos, _ = cv2.findContours((mask * 255).astype(np.uint8), 
-                                         cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contornos: return {'status': 'SIN_CONTORNO', 'score': score}
+        # Vectorizar
+        contornos, _ = cv2.findContours((mask * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contornos: return None
         
         cnt = max(contornos, key=cv2.contourArea)
-        eps = Config.POLYGON['factor_suavizado'] * cv2.arcLength(cnt, True)
+        eps = 0.005 * cv2.arcLength(cnt, True)
         approx = cv2.approxPolyDP(cnt, eps, True).squeeze()
         
-        if approx.ndim == 1 or len(approx) < 3: return {'status': 'CONTORNO_INVALIDO'}
+        if approx.ndim == 1 or len(approx) < 3: return None
         
-        # Georreferenciación
-        poligono = None
-        if bbox_ee:
-            coords_bb = bbox_ee.bounds().getInfo()['coordinates'][0]
-            lons = [c[0] for c in coords_bb]; lats = [c[1] for c in coords_bb]
-            v_geo = [pixel_a_geo(p[0], p[1], min(lons), max(lons), min(lats), max(lats), w, h) for p in approx]
-            poligono = Polygon(v_geo).buffer(0)
+        # Georreferenciar
+        v_geo = [pixel_a_geo(p[0], p[1], transform) for p in approx]
+        return Polygon(v_geo)
 
-        return {
-            'status': 'OK',
-            'poligono': poligono,
-            'area_ha': round(area_ha_aprox, 1),
-            'score': round(score, 3),
-            'vertices': len(approx)
-        }
-
-
-# ============================================================================
-# PIPELINE COORDINADOR
-# ============================================================================
 
 class AgroIAPipeline:
     def __init__(self):
-        self.gee = EngineSatelital()
+        self.copernicus = EngineCopernicus()
         self.sam = SegmentadorSAM()
         self.df = None
-        self.results = []
         self.features = []
 
     def cargar_datos(self, path):
         print(f"📂 Cargando: {path}")
-        df = pd.read_excel(path) if path.endswith('.xlsx') else pd.read_csv(path)
-        
-        renames = {}
-        for target, patterns in Config.COLUMNS.items():
-            col = encontrar_columna(patterns, df.columns)
-            if col: renames[col] = target
-        
-        df = df.rename(columns=renames)
-        
-        for c in ['lat', 'lon', 'dano_ha']:
-            if c in df.columns: df[c] = df[c].apply(parse_decimal)
-        
-        if 'fecha' in df.columns:
-            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=True)
-        
-        # Limpieza básica
-        df = df.dropna(subset=['lat', 'lon'])
-        if 'id' not in df.columns: df['id'] = range(1, len(df)+1)
-        df['id'] = df['id'].astype(str)
-        
-        # Filtro Argentina
-        df = df[df['lat'].between(-42, -22) & df['lon'].between(-70, -53)]
-        
-        # Lotes únicos para procesar (reducción por proximidad)
-        df['lat_r'] = df['lat'].round(4)
-        df['lon_r'] = df['lon'].round(4)
-        self.df = df.drop_duplicates(subset=['lat_r', 'lon_r']).reset_index(drop=True)
-        
-        print(f"✅ {len(self.df)} lotes preparados.")
+        if str(path).endswith('.xlsx'):
+            self.df = pd.read_excel(path)
+        else:
+            self.df = pd.read_csv(path)
+            
+        # Normalizar columnas
+        for key, aliases in Config.COLUMNS.items():
+            col = next((c for c in self.df.columns if c.lower() in aliases), None)
+            if col: self.df.rename(columns={col: key}, inplace=True)
 
-    def ejecutar(self, output_prefix='agroia_results'):
+    def ejecutar(self, output_prefix='agroia_poligonos'):
         if self.df is None: return
+        if not self.sam.cargar(): return
+        if not self.copernicus.conectar(): return
         
-        self.gee.conectar()
-        self.sam.cargar()
+        print(f"🚀 Iniciando delineación inteligente de {len(self.df)} puntos...")
         
-        out_geojson = f"{output_prefix}.geojson"
-        out_csv = f"{output_prefix}_log.csv"
-        
-        print(f"🚀 Iniciando poligonización en {DEVICE.upper()}...")
-        
-        pbar = tqdm(self.df.iterrows(), total=len(self.df), desc="Procesando")
-        
-        for idx, row in pbar:
-            t0 = time.time()
-            area_ref = row.get('dano_ha', 50)
-            if pd.isna(area_ref) or area_ref <= 0: area_ref = 50
+        for idx, row in self.df.iterrows():
+            lat = row.get('lat')
+            lon = row.get('lon')
+            lote_id = str(row.get('id', f"LOTE_{idx+1:03d}"))
+            cultivo = str(row.get('cultivo', 'maiz')).lower()
             
-            f_ini = (row['fecha'] - pd.Timedelta(days=Config.GEE['dias_ventana'])).strftime('%Y-%m-%d') if pd.notna(row['fecha']) else Config.OUTPUT['fecha_fallback_inicio']
-            f_fin = row['fecha'].strftime('%Y-%m-%d') if pd.notna(row['fecha']) else Config.OUTPUT['fecha_fallback_fin']
+            print(f"  [{idx+1}/{len(self.df)}] Delineando: {lote_id} ({lat}, {lon})...")
+            sys.stdout.flush()
             
-            ndvi, bbox = self.gee.descargar_ndvi(row['lat'], row['lon'], f_ini, f_fin)
-            
-            res = {'id': row['id'], 'estado': 'SIN_IMAGEN', 'area_ha': 0, 'score': 0, 'segundos': round(time.time()-t0, 1)}
-            
-            if ndvi is not None:
-                sam_res = self.sam.segmentar(ndvi, area_ref, bbox)
-                res.update(sam_res)
+            if pd.isna(lat) or pd.isna(lon):
+                print(f"    ⚠️ Coordenadas inválidas para {lote_id}")
+                sys.stdout.flush()
+                continue
+
+            img, trans, bbox = self.copernicus.descargar_ndvi_point(float(lat), float(lon))
+            if img is None:
+                print(f"    ⚠️ No se pudo descargar imagen de Copernicus para {lote_id}")
+                sys.stdout.flush()
+                continue
                 
-                if sam_res['status'] == 'OK' and sam_res['poligono']:
-                    real_ha = calcular_area_ha(sam_res['poligono'], row['lat'])
-                    res['area_ha'] = round(real_ha, 1)
-                    
-                    if real_ha < Config.POLYGON['min_area_ha']: res['estado'] = 'AREA_MIN_FAIL'
-                    elif real_ha > Config.POLYGON['max_area_ha']: res['estado'] = 'SOBRE_SEGMENTADO'
-                    else:
-                        feat = {
-                            "type": "Feature",
-                            "properties": {k: str(row.get(k, '')) for k in ['id', 'localidad', 'cultivo']},
-                            "geometry": mapping(sam_res['poligono'])
-                        }
-                        feat['properties'].update({
-                            "area_ha": res['area_ha'], "error_pct": round(abs(res['area_ha']-area_ref)/area_ref*100, 1),
-                            "sam_score": res['score'], "fecha_sat": f_fin
-                        })
-                        self.features.append(feat)
-            
-            self.results.append(res)
-            pbar.set_postfix({'status': res['estado'], 'ha': res['area_ha']})
-            
-            if len(self.results) % Config.OUTPUT['guardar_cada'] == 0:
-                self._guardar(out_geojson, out_csv)
+            print(f"    🛰️ Imagen descargada. Iniciando segmentación SAM...")
+            sys.stdout.flush()
+            poly = self.sam.segmentar(img, trans)
+            if poly:
+                print(f"    ✅ Polígono generado para {lote_id}")
+                sys.stdout.flush()
+                self.features.append({
+                    "type": "Feature",
+                    "properties": {"id": lote_id, "cultivo": cultivo, "area_ha": row.get('dano_ha', 0)},
+                    "geometry": mapping(poly)
+                })
+            else:
+                print(f"    ⚠️ SAM no pudo identificar un lote en estas coordenadas para {lote_id}")
+                sys.stdout.flush()
         
-        self._guardar(out_geojson, out_csv)
-        self._finalizar(output_prefix)
-
-    def _guardar(self, g, c):
-        with open(g, 'w') as f: json.dump({"type": "FeatureCollection", "features": self.features}, f)
-        pd.DataFrame(self.results).drop(columns=['poligono'], errors='ignore').to_csv(c, index=False)
-
-    def _finalizar(self, prefix):
-        print(f"\n📊 Resultados: {len(self.features)} polígonos válidos.")
-        self.generar_mapa(f"{prefix}_mapa.html")
-        self.generar_pdf(f"{prefix}_reporte.pdf")
-
-    def generar_mapa(self, path):
-        try:
-            import folium
-            if not self.features: return
-            gdf = gpd.GeoDataFrame.from_features(self.features)
-            centro = [gdf.geometry.centroid.y.mean(), gdf.geometry.centroid.x.mean()]
-            m = folium.Map(location=centro, zoom_start=8, tiles='CartoDB positron')
-            for _, r in gdf.iterrows():
-                color = 'green' if r.get('error_pct', 100) < 25 else 'orange'
-                folium.GeoJson(r.geometry.__geo_interface__, style_function=lambda x, c=color: {'fillColor': c, 'color': c}).add_to(m)
-            m.save(path)
-            print(f"🗺️ Mapa: {path}")
-        except: pass
-
-    def generar_pdf(self, path):
-        try:
-            from fpdf import FPDF
-            df = pd.DataFrame(self.results)
-            pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 16)
-            pdf.cell(0, 10, "AgroIA - Reporte de Poligonización", 1, 1, 'C')
-            pdf.ln(10); pdf.set_font("Arial", size=12)
-            pdf.cell(0, 10, f"Total procesado: {len(df)}", 0, 1)
-            pdf.cell(0, 10, f"Exitosos (OK): {len(self.features)}", 0, 1)
-            pdf.output(path)
-            print(f"📄 Reporte: {path}")
-        except: pass
-
-
-# ============================================================================
-# MAIN
-# ============================================================================
+        if self.features:
+            geojson = {"type": "FeatureCollection", "features": self.features}
+            out_file = f"{output_prefix}.geojson"
+            with open(out_file, 'w') as f:
+                json.dump(geojson, f)
+            print(f"✅ Proceso completado. Archivo generado: {out_file}")
+            return out_file
+        return None
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='AgroIA Unificada - SAM + GEE')
-    parser.add_argument('--csv', default='siniestros.csv', help='Entrada CSV o XLSX')
-    parser.add_argument('--output', default='agroia_poligonos', help='Prefijo de salida')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", help="CSV o XLSX con puntos GPS")
     args = parser.parse_args()
-
+    
     pipe = AgroIAPipeline()
-    try:
-        pipe.cargar_datos(args.csv)
-        pipe.ejecutar(args.output)
-        print("\n✅ Proceso completado con éxito.")
-    except Exception as e:
-        print(f"❌ Error fatal: {e}")
-        traceback.print_exc()
+    pipe.cargar_datos(args.input)
+    pipe.ejecutar()
