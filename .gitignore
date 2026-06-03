@@ -53,3 +53,31 @@ skills-lock.json
 
 # ── Docker volumes ───────────────────────────────────────────────────────────
 logs/
+
+# ── Backups y carpetas duplicadas del proyecto ────────────────────────────────
+AgroIA_RAG HACKATON COPERNICUS - copia/
+*- copia/
+*_backup/
+*.bak
+
+# ── Outputs generados (PDFs, mapas HTML, rasters temp) ───────────────────────
+outputs/
+src/outputs/
+data/temp_raster/
+sandbox_output_*
+Mapa_Interactivo_AgroIA_*.html
+
+# ── Videos de prueba ─────────────────────────────────────────────────────────
+*.mp4
+*.mkv
+*.mov
+
+# ── Scripts de debug y sandbox locales ───────────────────────────────────────
+debug_*.py
+sandbox_*.py
+test_eodag_*.py
+test_token.py
+test_cdse_auth.py
+check_dispo.py
+verify_pipeline.py
+temp_install.sh
