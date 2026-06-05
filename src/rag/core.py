@@ -38,6 +38,9 @@ BASE_PROMPT = (
     "IMPORTANTE: NO se refiere a malezas, limpieza del cultivo ni manejo de yuyos. Si baja, indica problemas en la confiabilidad de la serie satelital, no en el manejo del lote.\n"
     "• CLIMA (0-10 pts): horas sobre umbral térmico crítico (NASA POWER) vs umbral de penalización del cultivo. "
     "Bajo Clima = estrés térmico documentado en la ventana fenológica crítica.\n"
+    "• VULNERABILIDAD A EL NIÑO (0-10 pts): Mide la susceptibilidad del lote y cultivo ante anomalías de El Niño (Super Niño) en LAC (Latinoamérica y El Caribe). "
+    "Valores altos indican alta exposición geográfica o debilidad por bajo vigor. "
+    "Amenazas por zona: (a) Cono Sur: lluvias excesivas, inundación y lavado de nitrógeno; (b) Pacífico Andino: lluvias torrenciales costeras y sequías; (c) Amazonía/Caribe/Centroamérica: sequías severas, calor y riesgo de incendios.\n"
     "• CV ESPACIAL: coeficiente de variación intra-lote del NDVI. CV > 0.05 dispara zonificación A/B/C.\n"
     "• NDVI crítico: NDVI medio del lote en el mes fenológico más sensible (varía por cultivo).\n\n"
     "RAZONAMIENTO: Si un componente del Score está bajo, atribuyelo a SU CAUSA REAL según el glosario, "
@@ -54,6 +57,13 @@ BASE_PROMPT = (
     "(porque hay zonas diferenciadas dentro del lote que conviene inspeccionar). "
     "No recomiendes 'esperar' por motivos de variabilidad espacial — la variabilidad espacial es justamente "
     "la razón para ir al campo, no para evitarlo.\n\n"
+    "REGLA SUPER NIÑO (CRÍTICA — NO ROMPER): Si el contexto incluye un bloque "
+    "'EVALUACIÓN CLIMÁTICA SUPER NIÑO', la REGIÓN del lote, las AMENAZAS y las RECOMENDACIONES INMEDIATAS "
+    "son las que dice ese bloque. NO inventes una región distinta. NO menciones 'Cono Sur' si el bloque "
+    "dice 'Pacífico Andino'. NO inventes recomendaciones nuevas si el bloque ya lista las del sistema "
+    "experto. Citá literalmente la región y las recomendaciones, y solo agregás interpretación agronómica "
+    "adicional. Si la pregunta es sobre acciones inmediatas o vulnerabilidad climática, usá EXCLUSIVAMENTE "
+    "la información del bloque Super Niño.\n\n"
     "CITAS: Usa [ID-X] para referirte al informe actual y [Campaña YYYY] para historial. "
     "Si no hay información suficiente, indicá 'Dato no disponible'."
 )
@@ -222,6 +232,80 @@ def fetch_context(lote_id: str, pregunta: str, top_k: int = 3) -> str:
             f"Cultivo: {cultivo} | Sup: {sup_ha} ha | Fecha: {fecha}\n"
             f"Score: {score}/100 | NDVI: {ndvi} | Estrés: {gdd}h\n{contenido}"
         )
+
+        # ── 2b. Contexto Super Niño — prioriza metadata, fallback a cómputo on-the-fly ──
+        # Si el lote tiene la info pre-baked en metadata, la usamos. Si no, la calculamos
+        # en tiempo real usando el módulo el_nino.py + el centroide del lote.
+        # Esto garantiza que el LLM SIEMPRE reciba contexto regional correcto, incluso
+        # para lotes ingestados antes de que existiera el módulo Super Niño.
+        nino_block = None
+        el_nino_meta = meta.get("el_nino", {})
+
+        if el_nino_meta:
+            # Caso 1: metadata pre-baked (lotes ingestados con la nueva pipeline)
+            score_nino = el_nino_meta.get("score", 0.0)
+            riesgo_nino = el_nino_meta.get("riesgo", "N/D")
+            reg_nino = el_nino_meta.get("region_nombre", "N/D")
+            imp_nino = el_nino_meta.get("region_impacto", "N/D")
+            recs_nino = el_nino_meta.get("recomendaciones", {}).get("inmediatas", [])
+            nino_block = (
+                f"=== EVALUACIÓN CLIMÁTICA SUPER NIÑO (datos pre-computados) ===\n"
+                f"REGIÓN del lote (usá EXACTAMENTE esta, NO inventes otra): {reg_nino}\n"
+                f"Score de Vulnerabilidad: {score_nino}/10 ({riesgo_nino})\n"
+                f"Amenazas específicas de esta región: {imp_nino}\n"
+                f"Recomendaciones inmediatas del sistema experto: "
+                f"{'; '.join(recs_nino[:5]) if recs_nino else 'sin recomendaciones específicas'}\n"
+                f"=== FIN EVALUACIÓN CLIMÁTICA ==="
+            )
+        else:
+            # Caso 2: cómputo on-the-fly desde el centroide
+            try:
+                centroide = meta.get("centroide", [0, 0])
+                if centroide and len(centroide) == 2 and centroide[0] != 0:
+                    from src.pipeline.el_nino import (
+                        obtener_alertas_el_nino,
+                        clasificar_region_lac,
+                        calcular_vulnerabilidad_el_nino,
+                        obtener_recomendaciones_el_nino,
+                    )
+                    import geopandas as gpd
+                    from shapely.geometry import Point
+
+                    lat, lon = float(centroide[0]), float(centroide[1])
+                    alerta = obtener_alertas_el_nino()
+                    region_id = clasificar_region_lac(lat, lon)
+                    gdf_mock = gpd.GeoDataFrame(geometry=[Point(lon, lat)], crs="EPSG:4326")
+                    cultivo_lote = cultivo or "maiz"
+
+                    vuln = calcular_vulnerabilidad_el_nino(
+                        gdf_mock, cultivo_lote, float(ndvi or 0),
+                        temp_actual=25.0, precip_actual=10.0
+                    )
+                    recs = obtener_recomendaciones_el_nino(
+                        cultivo_lote, region_id, vuln["score"]
+                    )
+
+                    factores_str = "; ".join(vuln.get("factores", [])) or "sin factores específicos"
+                    recs_inmediatas = recs.get("inmediatas", [])
+                    recs_str = "; ".join(recs_inmediatas[:5]) if recs_inmediatas else "sin recomendaciones inmediatas"
+
+                    nino_block = (
+                        "=== EVALUACIÓN CLIMÁTICA SUPER NIÑO (cómputo en tiempo real) ===\n"
+                        f"Alerta global vigente: {alerta.get('estado', 'N/D')} — probabilidad {alerta.get('probabilidad', 'N/D')}%\n"
+                        f"Período crítico: {alerta.get('periodo_critico', 'N/D')}\n"
+                        f"REGIÓN del lote (usá EXACTAMENTE esta, NO inventes otra): {vuln['region_nombre']}\n"
+                        f"Score de Vulnerabilidad: {vuln['score']}/10 ({vuln['riesgo']})\n"
+                        f"Amenazas específicas de esta región: {vuln['region_impacto']}\n"
+                        f"Factores de riesgo detectados en este lote: {factores_str}\n"
+                        f"Recomendaciones inmediatas del sistema experto (usá EXACTAMENTE estas, "
+                        f"NO inventes otras): {recs_str}\n"
+                        "=== FIN EVALUACIÓN CLIMÁTICA ==="
+                    )
+            except Exception as e:
+                logger.warning(f"No se pudo computar contexto Super Niño on-the-fly: {e}")
+
+        if nino_block:
+            fragmentos.append(nino_block)
 
         # ── 3. RANKING PRE-COMPUTADO (evita que el LLM falle al rankear) ──────
         ranking_block = _build_score_ranking(score_desglose, float(gdd or 0), cultivo or "maiz")
