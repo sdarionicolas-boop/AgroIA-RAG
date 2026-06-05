@@ -631,8 +631,9 @@ with st.sidebar:
         if st.button("🗑️ Borrar este lote", disabled=not confirmar_uno, key="btn_borrar_uno"):
             try:
                 import requests as _req
+                # Usa settings.api_url (resuelve a http://api:8000 en Docker, http://localhost:8000 local)
                 r = _req.delete(
-                    f"http://localhost:{settings.api_port}/lotes/{lote_borrar}",
+                    f"{settings.api_url.rstrip('/')}/lotes/{lote_borrar}",
                     headers={"Authorization": f"Bearer {settings.ingesta_secret_key}"},
                     timeout=10,
                 )
@@ -659,8 +660,9 @@ with st.sidebar:
                      type="primary"):
             try:
                 import requests as _req
+                # Usa settings.api_url (resuelve a http://api:8000 en Docker, http://localhost:8000 local)
                 r = _req.delete(
-                    f"http://localhost:{settings.api_port}/lotes",
+                    f"{settings.api_url.rstrip('/')}/lotes",
                     headers={"Authorization": f"Bearer {settings.ingesta_secret_key}"},
                     timeout=10,
                 )
