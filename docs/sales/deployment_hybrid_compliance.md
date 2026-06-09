@@ -11,7 +11,7 @@
 
 ## Bloque A — Segregación de datos
 
-El perímetro del cliente expone únicamente datos geográficos no personales hacia la infraestructura de Copernicus: el polígono del lote en WKT (EPSG:4326), el año y mes consultado, y el token OAuth2 emitido por CDSE. No salen del perímetro identificadores de póliza, datos personales del asegurado (nombre, CUIT, dirección), historial de siniestros ni montos asegurados o liquidados. La cartera de pólizas, el historial de siniestros, los embeddings del módulo RAG (pgvector) y el LLM local (Ollama, gemma3:4b) residen exclusivamente en la base PostgreSQL on-premise del cliente. La asociación lote_id ↔ póliza vive en una tabla de mapeo administrada por el cliente, nunca expuesta al pipeline satelital.
+AgroIA **no infiere bordes de lotes**: usa los polígonos que provee la aseguradora (SHP/KML/GeoJSON desde su catastro). La geometría se valida con `shapely.is_valid` y se persiste sin modificación. El perímetro del cliente expone únicamente datos geográficos no personales hacia Copernicus: el polígono del lote en WKT (EPSG:4326), el año y mes consultado, y el token OAuth2 emitido por CDSE. No salen del perímetro identificadores de póliza, datos personales del asegurado, historial de siniestros ni montos asegurados o liquidados. La cartera de pólizas, los embeddings RAG (pgvector) y el LLM local (Ollama, gemma3:4b) residen exclusivamente en la base PostgreSQL on-premise del cliente. La asociación lote_id ↔ póliza vive en una tabla de mapeo administrada por el cliente, nunca expuesta al pipeline satelital.
 
 _(120 palabras)_
 
@@ -58,6 +58,7 @@ Para uso interno del equipo comercial — no para slide.
 - Si la aseguradora pregunta por **certificaciones** (SOC 2, ISO 27001), responder con honestidad: el stack es auditable contra esos marcos pero la certificación formal es un compromiso a planificar, no una promesa actual.
 - Si preguntan por **disponibilidad / SLA**, decir que el SLA depende del modelo (SaaS multi-tenant tiene SLA AgroIA; on-prem depende del cliente; single-tenant VPC es responsabilidad compartida). Cifras concretas se acuerdan en contrato.
 - Si la conversación deriva a **uso del LLM con datos del asegurado**, aclarar: el LLM Ollama es local, el modelo no envía prompts a servidores externos, y el contexto que recibe el LLM proviene exclusivamente de la base de pólizas e informes on-prem.
+- **Sobre delineación automática de lotes (SAM):** AgroIA tiene un modelo de visión computacional (SAM) para detectar bordes a partir de un punto GPS, pero **no se ofrece en el flujo individual para aseguradoras**. Está disponible para el modo de ingesta masiva interna (cuando el cliente quiere digitalizar carteras viejas) y para el canal B2C del bot Telegram para pequeños productores. La razón es regulatoria: un falso positivo o falso negativo de SAM en una delineación que después se contrasta contra un peritaje en campo destruye la confianza del usuario corporativo. En B2B se exige polígono real del cliente.
 
 ---
 
