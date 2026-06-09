@@ -1242,6 +1242,28 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                         "área dentro de rango plausible). No se infieren bordes."
                     )
 
+                # Calcular area_ha en UTM real (exigencia actuarial B2B).
+                # Reproyecta a la UTM correspondiente al centroide; geopandas
+                # elige la zona automáticamente.
+                try:
+                    _proj = gdf_ev.to_crs(gdf_ev.estimate_utm_crs())
+                    _area_ha = float(_proj.geometry.area.iloc[0] / 10_000.0)
+                    gdf_ev = gdf_ev.copy()
+                    gdf_ev['area_ha'] = round(_area_ha, 2)
+                    st.caption(
+                        f"📐 Área calculada en proyección UTM real: **{_area_ha:.2f} ha**"
+                    )
+                except Exception as _e_utm:
+                    # Fallback raro: UTM falla → aproximación equirectangular.
+                    from src.pipeline.sam_fallback import approximate_area_ha
+                    _approx = approximate_area_ha(gdf_ev.geometry.iloc[0])
+                    gdf_ev = gdf_ev.copy()
+                    gdf_ev['area_ha'] = round(_approx, 2)
+                    st.caption(
+                        f"⚠️ Reproyección UTM falló ({_e_utm}); área aproximada "
+                        f"equirectangular: ~{_approx:.2f} ha."
+                    )
+
             if geom_type == 'Point':
                 st.warning(
                     "⚠️ **Detectamos un punto GPS, no un polígono.** Para uso B2B "
@@ -1340,11 +1362,16 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                                     gdf_ev = manual_polygon_gdf
                                     try:
                                         gdf_ev_proj = gdf_ev.to_crs(gdf_ev.estimate_utm_crs())
-                                        area_ha = gdf_ev_proj.geometry.area.iloc[0] / 10000.0
-                                        gdf_ev['area_ha'] = area_ha
+                                        area_ha = float(gdf_ev_proj.geometry.area.iloc[0] / 10000.0)
+                                        gdf_ev['area_ha'] = round(area_ha, 2)
                                     except Exception:
-                                        gdf_ev['area_ha'] = 25.0
-                                    st.success(f"✅ Usando lote dibujado manualmente: {gdf_ev.iloc[0].get('area_ha', 25.0):.1f} ha")
+                                        # Fallback equirectangular (sin mentir con 25.0 hardcodeado)
+                                        from src.pipeline.sam_fallback import approximate_area_ha
+                                        gdf_ev['area_ha'] = round(approximate_area_ha(gdf_ev.geometry.iloc[0]), 2)
+                                    st.success(
+                                        f"✅ Usando lote dibujado manualmente: "
+                                        f"{gdf_ev.iloc[0].get('area_ha', 0):.2f} ha"
+                                    )
                                 else:
                                     st.error("❌ No se ha capturado ningún polígono dibujado. Dibujá el lote en el mapa antes de presionar Ejecutar.")
                                     st.stop()
