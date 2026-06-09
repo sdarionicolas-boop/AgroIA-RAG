@@ -211,6 +211,20 @@ SAM (Segment Anything Model) **se retiró del flujo individual B2B** para asegur
 - **B2B (ingesta masiva interna):** SAM sigue activo porque el operador es interno y puede revisar/descartar resultados.
 - **B2C (bot Telegram, gratuito):** SAM sigue activo con fallback informativo; el costo de un error es bajo porque es un servicio sin SLA.
 
+### 13.2 Resultados Track B-minus (Validación de Señal Satelital)
+Se realizó una validación extensiva de la **señal satelital de daño** (delta-NDVI pre/post evento) contra el **Daño Ponderado de peritajes reales** sobre 363 casos en Córdoba y Buenos Aires (campaña 2018/19).
+
+| Dataset | N | Pearson R | p-value | Hallazgo Clave |
+|---|---|---|---|---|
+| **Córdoba 2018** | 215 | **+0.210** | 0.0019 | Señal positiva significativa. $R=-0.62$ en encañazón por rebrote. |
+| **Villegas (Total)** | 164 | **+0.171** | 0.0289 | Validación multicultivo (Soja/Maíz/Trigo). |
+| **Villegas (PBA-only)** | 148 | **+0.182** | 0.0265 | Relevancia territorial directa para beca **BENTRE27**. |
+
+**Hallazgos Metodológicos:**
+1. **Inversión de Señal por Rebrote:** En estadios vegetativos tempranos (encañazón), a mayor daño pericial se observó menor caída de NDVI (o incluso aumento) debido a la compensación de biomasa (macollaje/rebrote). Esto exige modelos por estadio fenológico.
+2. **Fuerza en Reproductivo:** La correlación más fuerte se halló en `trigo × reproductivo_inicio` en PBA (**R=+0.58, p=0.015**), donde el daño es definitivo y la planta no compensa biomasa.
+3. **Efecto Buffer:** El uso de buffers sobre puntos GPS diluye la señal. El pivot a polígonos reales (B2B) es la vía para alcanzar precisiones actuariales (>0.40).
+
 Referencias para próximos agentes:
 - Wiring UI: [`src/streamlit_app.py`](src/streamlit_app.py) modo Siniestros (Eventualidades).
 - Copy comercial: [`docs/sales/deployment_hybrid_compliance.md`](docs/sales/deployment_hybrid_compliance.md) — Bloque A y nota interna sobre SAM.

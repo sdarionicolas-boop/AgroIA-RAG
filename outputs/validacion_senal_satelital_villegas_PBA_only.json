@@ -1,0 +1,293 @@
+{
+  "dataset_dir": "C:\\Users\\sdari\\Desktop\\AgroIA_RAG HACKATON COPERNICUS\\Villegas",
+  "n_dataset": 148,
+  "n_processed": 148,
+  "n_excluded": 0,
+  "bootstrap_iter": 1000,
+  "pre_days": 30,
+  "post_days": 30,
+  "per_cohort": [
+    {
+      "cohort": "cebada × llenado_grano",
+      "n": 1,
+      "note": "n=1 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "cebada × madurez",
+      "n": 1,
+      "note": "n=1 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "girasol × llenado_grano",
+      "n": 1,
+      "note": "n=1 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "girasol × reproductivo_inicio",
+      "n": 1,
+      "note": "n=1 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "girasol × vegetativo_avanzado",
+      "n": 1,
+      "note": "n=1 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "maiz × llenado_grano",
+      "n": 5,
+      "pearson_r": 0.19837658055253804,
+      "pearson_p": 0.7490856595406533,
+      "spearman_rho": 0.0,
+      "spearman_p": 1.0,
+      "delta_rel_mean": 1.26489438235245,
+      "delta_rel_std": 21.97745083049823,
+      "dano_pond_mean": 10.6,
+      "dano_pond_std": 18.249383551232626,
+      "bootstrap": {
+        "r_mean": -0.008948890843798771,
+        "ci95_low": -1.0,
+        "ci95_high": 1.0,
+        "n_iter": 981
+      },
+      "loo_cv": {
+        "loo_r_mean": 0.06139592009908379,
+        "loo_r_std": 0.30570750518331097,
+        "n_folds": 5
+      }
+    },
+    {
+      "cohort": "maiz × reproductivo_inicio",
+      "n": 8,
+      "pearson_r": 0.04120217873615645,
+      "pearson_p": 0.9228333023710709,
+      "spearman_rho": -0.28571428571428575,
+      "spearman_p": 0.49272624501695717,
+      "delta_rel_mean": -15.937030027830254,
+      "delta_rel_std": 31.29936878834021,
+      "dano_pond_mean": 42.875,
+      "dano_pond_std": 35.52617872780578,
+      "bootstrap": {
+        "r_mean": 0.0018856755082151029,
+        "ci95_low": -0.8867126851022124,
+        "ci95_high": 0.8162154634445741,
+        "n_iter": 1000
+      },
+      "loo_cv": {
+        "loo_r_mean": 0.03723315724618158,
+        "loo_r_std": 0.1360121321838331,
+        "n_folds": 8
+      }
+    },
+    {
+      "cohort": "maiz × vegetativo_avanzado",
+      "n": 18,
+      "pearson_r": -0.21550492093488482,
+      "pearson_p": 0.39043539099999647,
+      "spearman_rho": -0.18830192951003016,
+      "spearman_p": 0.4542932912400463,
+      "delta_rel_mean": -51.921129873218646,
+      "delta_rel_std": 45.005635562640705,
+      "dano_pond_mean": 11.61111111111111,
+      "dano_pond_std": 11.9030289744011,
+      "bootstrap": {
+        "r_mean": -0.21415186568361302,
+        "ci95_low": -0.5935871465999444,
+        "ci95_high": 0.2014359139041473,
+        "n_iter": 1000
+      },
+      "loo_cv": {
+        "loo_r_mean": -0.2153737387990027,
+        "loo_r_std": 0.05129834439487492,
+        "n_folds": 18
+      }
+    },
+    {
+      "cohort": "maiz × vegetativo_temprano",
+      "n": 7,
+      "note": "desviación nula"
+    },
+    {
+      "cohort": "soja × desconocido",
+      "n": 1,
+      "note": "n=1 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "soja × llenado_grano",
+      "n": 16,
+      "pearson_r": 0.2926976582128757,
+      "pearson_p": 0.27127297707138515,
+      "spearman_rho": 0.2942679048201107,
+      "spearman_p": 0.26859057658148017,
+      "delta_rel_mean": -13.189817607994344,
+      "delta_rel_std": 42.35517284437608,
+      "dano_pond_mean": 12.25,
+      "dano_pond_std": 20.580634101018365,
+      "bootstrap": {
+        "r_mean": 0.26929184186426125,
+        "ci95_low": -0.14621701645844778,
+        "ci95_high": 0.5934344295552533,
+        "n_iter": 1000
+      },
+      "loo_cv": {
+        "loo_r_mean": 0.2894091941196426,
+        "loo_r_std": 0.05247977959616368,
+        "n_folds": 16
+      }
+    },
+    {
+      "cohort": "soja × madurez",
+      "n": 3,
+      "note": "n=3 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "soja × reproductivo_inicio",
+      "n": 12,
+      "pearson_r": 0.3838922691089536,
+      "pearson_p": 0.21795946900224172,
+      "spearman_rho": 0.4225378306582298,
+      "spearman_p": 0.17118475802474645,
+      "delta_rel_mean": -101.83416426343473,
+      "delta_rel_std": 70.93622308951755,
+      "dano_pond_mean": 24.666666666666668,
+      "dano_pond_std": 26.253042151762568,
+      "bootstrap": {
+        "r_mean": 0.3789604174421214,
+        "ci95_low": -0.10581136422658405,
+        "ci95_high": 0.7177302663470415,
+        "n_iter": 1000
+      },
+      "loo_cv": {
+        "loo_r_mean": 0.38443819757230796,
+        "loo_r_std": 0.05375883710135647,
+        "n_folds": 12
+      }
+    },
+    {
+      "cohort": "soja × vegetativo_avanzado",
+      "n": 2,
+      "note": "n=2 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "soja × vegetativo_temprano",
+      "n": 21,
+      "pearson_r": 0.03445010953524163,
+      "pearson_p": 0.8821480504198548,
+      "spearman_rho": -0.18342071721210296,
+      "spearman_p": 0.4261150446774083,
+      "delta_rel_mean": -82.24361932546003,
+      "delta_rel_std": 67.99473201947573,
+      "dano_pond_mean": 29.904761904761905,
+      "dano_pond_std": 27.498752806185436,
+      "bootstrap": {
+        "r_mean": 0.015701828346380373,
+        "ci95_low": -0.4037902435564988,
+        "ci95_high": 0.44162753440527,
+        "n_iter": 1000
+      },
+      "loo_cv": {
+        "loo_r_mean": 0.033421867375011606,
+        "loo_r_std": 0.053843169095466485,
+        "n_folds": 21
+      }
+    },
+    {
+      "cohort": "sorgo × vegetativo_temprano",
+      "n": 3,
+      "note": "n=3 < 5, no se calculan estadísticos"
+    },
+    {
+      "cohort": "trigo × llenado_grano",
+      "n": 10,
+      "pearson_r": 0.27589189631152794,
+      "pearson_p": 0.44036379264362185,
+      "spearman_rho": 0.338501600193165,
+      "spearman_p": 0.33869951942927384,
+      "delta_rel_mean": 23.85954849666261,
+      "delta_rel_std": 16.85807486314871,
+      "dano_pond_mean": 64.4,
+      "dano_pond_std": 37.4571755475503,
+      "bootstrap": {
+        "r_mean": 0.2661651045777471,
+        "ci95_low": -0.6214225288585219,
+        "ci95_high": 0.857331908195607,
+        "n_iter": 1000
+      },
+      "loo_cv": {
+        "loo_r_mean": 0.27398210152755414,
+        "loo_r_std": 0.1480372591389019,
+        "n_folds": 10
+      }
+    },
+    {
+      "cohort": "trigo × madurez",
+      "n": 20,
+      "pearson_r": -0.04622327454725423,
+      "pearson_p": 0.8465602521883997,
+      "spearman_rho": -0.048114767418608526,
+      "spearman_p": 0.840357099422822,
+      "delta_rel_mean": 22.90902481277233,
+      "delta_rel_std": 29.04930298344945,
+      "dano_pond_mean": 21.65,
+      "dano_pond_std": 25.558315672203438,
+      "bootstrap": {
+        "r_mean": -0.04093659357307674,
+        "ci95_low": -0.37152013495229663,
+        "ci95_high": 0.35350778957332973,
+        "n_iter": 1000
+      },
+      "loo_cv": {
+        "loo_r_mean": -0.045645320013224515,
+        "loo_r_std": 0.04257981094067956,
+        "n_folds": 20
+      }
+    },
+    {
+      "cohort": "trigo × reproductivo_inicio",
+      "n": 17,
+      "pearson_r": 0.5769613145919564,
+      "pearson_p": 0.015315946912632472,
+      "spearman_rho": 0.3195592970113107,
+      "spearman_p": 0.21118244263381838,
+      "delta_rel_mean": 1.1587040875193297,
+      "delta_rel_std": 16.756236793688732,
+      "dano_pond_mean": 25.647058823529413,
+      "dano_pond_std": 40.486658915907235,
+      "bootstrap": {
+        "r_mean": 0.5485722664266192,
+        "ci95_low": -0.21273226232662415,
+        "ci95_high": 0.9101248232519983,
+        "n_iter": 1000
+      },
+      "loo_cv": {
+        "loo_r_mean": 0.5749652686573135,
+        "loo_r_std": 0.06733096334689047,
+        "n_folds": 17
+      }
+    }
+  ],
+  "global": {
+    "cohort": "global",
+    "n": 148,
+    "pearson_r": 0.18233217786329944,
+    "pearson_p": 0.02655580331208685,
+    "spearman_rho": 0.12544130491970235,
+    "spearman_p": 0.12873051727034376,
+    "delta_rel_mean": -30.697478992017608,
+    "delta_rel_std": 66.41421382369707,
+    "dano_pond_mean": 23.364864864864863,
+    "dano_pond_std": 30.853653830810188,
+    "bootstrap": {
+      "r_mean": 0.17876467842788213,
+      "ci95_low": 0.05495766007580091,
+      "ci95_high": 0.2907716553026311,
+      "n_iter": 1000
+    },
+    "loo_cv": {
+      "loo_r_mean": 0.18231880491191113,
+      "loo_r_std": 0.0051057105570687005,
+      "n_folds": 148
+    }
+  },
+  "worst_cdse_state": "cached_valid",
+  "cdse_state_log_count": 296
+}
