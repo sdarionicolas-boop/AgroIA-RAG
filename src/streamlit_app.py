@@ -69,6 +69,58 @@ from src.pipeline.eventualidades import run_eventualidades, generar_mapa_folium,
 ZONA_COLORS = {"A": "#40916C", "B": "#F4A261", "C": "#D62828"}
 # ====================================================
 
+
+def render_cdse_state_banner(worst_state_value: str | None, log_excerpt: list | None) -> None:
+    """Renderiza el banner que comunica al usuario el estado degradado del extractor CDSE.
+
+    Banners (de menos a más severo):
+      - FRESH / CACHED_VALID     → sin banner (operación normal)
+      - CACHED_STALE             → amarillo (no bloqueante)
+      - CACHED_EXPIRED_FALLBACK  → naranja (no bloqueante, sugerencia de reintento)
+      - NO_DATA_AVAILABLE        → rojo (no bloqueante para el render pero indica que no hubo datos)
+    """
+    if not worst_state_value:
+        return
+    try:
+        from src.pipeline.eodag_extractor import CDSEDataState, RETRY_SUGGESTION_MINUTES
+        state = CDSEDataState(worst_state_value)
+    except Exception:
+        return
+
+    def _detail_expander():
+        if not log_excerpt:
+            return
+        with st.expander("Detalle de estados por consulta CDSE"):
+            for s_val, msg, y, m in log_excerpt:
+                tag = f"`{y}-{m:02d}`" if (y and m) else "`-`"
+                st.write(f"- {tag} **{s_val}** — {msg}")
+
+    if state in (CDSEDataState.FRESH, CDSEDataState.CACHED_VALID):
+        return
+    if state == CDSEDataState.CACHED_STALE:
+        st.warning(
+            "🟡 **Datos parcialmente actualizados.** Una o más consultas vinieron de caché "
+            "próxima a expirar (>90% del TTL). Sigue siendo confiable; el próximo análisis "
+            "intentará refrescar contra la API CDSE."
+        )
+        _detail_expander()
+        return
+    if state == CDSEDataState.CACHED_EXPIRED_FALLBACK:
+        st.warning(
+            "🟠 **API CDSE no responde — usando caché expirada.** Algunas estadísticas se "
+            "sirvieron desde respuestas anteriores con TTL vencido (>48 h). El análisis es "
+            f"indicativo; reintentá en ~{RETRY_SUGGESTION_MINUTES} min para datos frescos."
+        )
+        _detail_expander()
+        return
+    if state == CDSEDataState.NO_DATA_AVAILABLE:
+        st.error(
+            "🔴 **Sin datos satelitales disponibles.** Ni la API CDSE ni la caché local "
+            f"pudieron responder. Reintentá en ~{RETRY_SUGGESTION_MINUTES} min. "
+            "Si persiste, verificá credenciales CDSE en `config/.env` y la conectividad de red."
+        )
+        _detail_expander()
+
 # ============================================================================
 # DB HELPERS (solo lo que NO está en rag.core — consultas de UI específicas)
 # ============================================================================
@@ -1316,6 +1368,10 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                                     st.success(f"✅ Fallback de envolvente geométrica aplicado: ~{fb_area:.1f} ha")
 
                         # ── Análisis Satelital ──
+                        from src.pipeline.eodag_extractor import (
+                            reset_cdse_state_log, get_worst_cdse_state, get_cdse_state_log,
+                        )
+                        reset_cdse_state_log()
                         geom_ee, coords = cargar_poligono_desde_gdf(gdf_ev)
                         res = run_eventualidades(
                             geom_shapely=geom_ee,
@@ -1324,7 +1380,18 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                             tipo_evento=tipo_ev,
                             caso_nombre=nombre_caso
                         )
+                        # Persistir telemetría del extractor para que el banner
+                        # se renderice también después del rerun.
+                        st.session_state.cdse_last_worst_state = get_worst_cdse_state().value
+                        st.session_state.cdse_last_log = [
+                            (r.state.value, r.message, r.year, r.month)
+                            for r in get_cdse_state_log()
+                        ]
                         if res is None:
+                            render_cdse_state_banner(
+                                st.session_state.cdse_last_worst_state,
+                                st.session_state.cdse_last_log,
+                            )
                             st.error("⚠️ No se pudieron obtener datos satelitales suficientes para el análisis. Esto puede deberse a que la fecha del siniestro es muy reciente (y el mes posterior aún no cuenta con imágenes Sentinel-2 disponibles) o a problemas de conexión con CDSE.")
                         else:
                             from src.pipeline.eventualidades import generar_puntos_muestreo
@@ -1337,6 +1404,12 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
     # ── Mostrar Resultados (si existen en el estado) ─────────────────────────
     if st.session_state.siniestro_res:
         res = st.session_state.siniestro_res
+
+        # Banner CDSE (no-bloqueante): muestra estados degradados si los hubo.
+        render_cdse_state_banner(
+            st.session_state.get("cdse_last_worst_state"),
+            st.session_state.get("cdse_last_log"),
+        )
 
         st.divider()
         st.success(f"### Resultado: {res['clasificacion']}")

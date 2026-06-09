@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>AgroIA — Banners CDSE</title>
+<style>
+body {{ font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+       background: #f6f7f9; margin: 0; padding: 32px; color: #222; }}
+.container {{ max-width: 880px; margin: 0 auto; }}
+h1 {{ margin-bottom: 4px; }}
+.subtitle {{ color: #666; margin-bottom: 32px; font-size: 14px; }}
+.banner {{ display: flex; align-items: flex-start; gap: 12px;
+           padding: 14px 18px; border-radius: 6px; margin-bottom: 18px;
+           border-left: 6px solid; font-size: 14.5px; line-height: 1.45; }}
+.banner .icon {{ font-size: 22px; flex-shrink: 0; }}
+.banner .body {{ flex: 1; }}
+.banner code {{ background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 3px;
+                font-family: ui-monospace, Consolas, monospace; font-size: 13px; }}
+.banner b {{ display: block; margin-bottom: 4px; }}
+
+.fresh                    {{ background: #ecfdf3; border-color: #16a34a; color: #14532d; }}
+.cached_valid             {{ background: #f0f9ff; border-color: #0284c7; color: #0c4a6e; }}
+.cached_stale             {{ background: #fefce8; border-color: #ca8a04; color: #713f12; }}
+.cached_expired_fallback  {{ background: #fff7ed; border-color: #ea580c; color: #7c2d12; }}
+.no_data_available        {{ background: #fef2f2; border-color: #dc2626; color: #7f1d1d; }}
+
+.legend {{ font-size: 12px; color: #888; margin-top: 24px; line-height: 1.55; }}
+</style>
+</head><body><div class="container">
+<h1>AgroIA — Banners de estado del extractor CDSE</h1>
+<p class="subtitle">Preview estático de los 5 estados (Tarea 4.5). Comparar contra los banners reales en Streamlit.</p>
+
+<div class="banner fresh"><div class="icon">✅</div><div class="body">
+<b>FRESH (sin banner)</b>
+En operación normal, Streamlit no muestra ningún banner. La API CDSE respondió en el primer intento.
+<br><i>(Solo se renderiza la cabecera estándar del análisis.)</i>
+</div></div>
+
+<div class="banner cached_valid"><div class="icon">💾</div><div class="body">
+<b>CACHED_VALID (sin banner)</b>
+La caché local está vigente (edad menor al 90% del TTL). No se muestra banner — la app considera caché vigente como operación normal.
+<br><i>(Sin notificación al usuario.)</i>
+</div></div>
+
+<div class="banner cached_stale"><div class="icon">🟡</div><div class="body">
+<b>CACHED_STALE</b>
+<b>Datos parcialmente actualizados.</b> Una o más consultas vinieron de caché próxima a expirar (&gt;90% del TTL). Sigue siendo confiable; el próximo análisis intentará refrescar contra la API CDSE.
+</div></div>
+
+<div class="banner cached_expired_fallback"><div class="icon">🟠</div><div class="body">
+<b>CACHED_EXPIRED_FALLBACK</b>
+<b>API CDSE no responde — usando caché expirada.</b> Algunas estadísticas se sirvieron desde respuestas anteriores con TTL vencido (&gt;48 h). El análisis es indicativo; reintentá en ~5 min para datos frescos.
+</div></div>
+
+<div class="banner no_data_available"><div class="icon">🔴</div><div class="body">
+<b>NO_DATA_AVAILABLE</b>
+<b>Sin datos satelitales disponibles.</b> Ni la API CDSE ni la caché local pudieron responder. Reintentá en ~5 min. Si persiste, verificá credenciales CDSE en <code>config/.env</code> y la conectividad de red.
+</div></div>
+
+<div class="legend">
+Orden de severidad (de menos a más grave):<br>
+<code>FRESH</code> &lt; <code>CACHED_VALID</code> &lt; <code>CACHED_STALE</code> &lt; <code>CACHED_EXPIRED_FALLBACK</code> &lt; <code>NO_DATA_AVAILABLE</code>.<br>
+El banner que se muestra corresponde al estado <b>peor</b> de toda la corrida (no a la última consulta).
+</div>
+
+</div></body></html>
