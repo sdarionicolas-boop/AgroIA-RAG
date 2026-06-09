@@ -85,14 +85,11 @@ from src.pipeline.sam_fallback import (  # noqa: E402
 # ---------------------------------------------------------------------------
 # Constantes
 # ---------------------------------------------------------------------------
-SHP_FILES = (
-    "Menor o igual a 6.shp",
-    "Mayor a 15 y menor o igual a 30.shp",
-    "Mayor a 30 y menor a 45.shp",
-    "Mayor a 45 o igual a 60.shp",          # solape con el siguiente
-    "Mayor a 45 y menor o igual a 60.shp",  # solape con el anterior
-    "Mayor a 60 y menor o igual a 80.shp",
-    "Mayor a 80 o igual a 100.shp",
+# Patrones de archivos a EXCLUIR del glob (shapefiles "de fondo" que no son peritajes,
+# como `Cordoba.shp` o `Villegas.shp` con un solo polígono de contorno).
+EXCLUDE_FILE_PATTERNS = (
+    "Cordoba.shp",
+    "Villegas.shp",
 )
 
 # Mapeo de columnas mojibake → ASCII normalizado.
@@ -119,8 +116,14 @@ CULTIVO_MAP = {
     "maiz": "maiz",
     "maíz": "maiz",
     "ma�z": "maiz",  # mojibake
+    "maiz 2da": "maiz",
+    "maíz 2da": "maiz",
     "soja": "soja",
+    "soja 1ra": "soja",
+    "soja 2da": "soja",
     "girasol": "girasol",
+    "sorgo": "sorgo",
+    "cebada": "cebada",
 }
 
 # Cohortes mínimas para reportar estadísticos
@@ -242,18 +245,35 @@ def offset_month(d: datetime, offset_days: int) -> tuple[int, int]:
 # ---------------------------------------------------------------------------
 # Carga y normalización del dataset
 # ---------------------------------------------------------------------------
-def load_cordoba(base_dir: Path) -> pd.DataFrame:
-    """Carga los 7 shapefiles + dedup + normaliza columnas."""
+def load_dataset(base_dir: Path,
+                 provincia_filter: str | None = None) -> pd.DataFrame:
+    """Carga todos los shapefiles del directorio + dedup + normaliza columnas.
+
+    Args:
+      base_dir         : directorio con los .shp de peritajes (Cordoba/, Villegas/, etc.)
+      provincia_filter : si se pasa (e.g. "BUENOS AIRES"), subsetea por Provincia.
+                         Match case-insensitive sobre el campo `Provincia` del shapefile.
+
+    Filtra automáticamente los shapefiles de "fondo" (polígono único de contorno)
+    listados en EXCLUDE_FILE_PATTERNS.
+    """
     parts = []
-    for fn in SHP_FILES:
-        p = base_dir / fn
-        if not p.exists():
+    found_files = []
+    for p in sorted(base_dir.glob("*.shp")):
+        if p.name in EXCLUDE_FILE_PATTERNS:
             continue
         gdf = gpd.read_file(p)
-        gdf["_source_shp"] = fn
+        if len(gdf) == 0:
+            continue
+        # Filtrar shapefiles que son polígono único (fondo, no peritaje)
+        if gdf.geometry.iloc[0].geom_type != "Point":
+            continue
+        gdf["_source_shp"] = p.name
         parts.append(gdf)
+        found_files.append(p.name)
     if not parts:
-        raise FileNotFoundError(f"No shapefiles found in {base_dir}")
+        raise FileNotFoundError(f"No peritaje shapefiles found in {base_dir}")
+    print(f"   Shapefiles cargados: {found_files}")
     raw = pd.concat(parts, ignore_index=True)
 
     dano_col = find_dano_column(list(raw.columns))
@@ -285,7 +305,15 @@ def load_cordoba(base_dir: Path) -> pd.DataFrame:
 
     # Filtrar filas sin datos críticos
     df = df.dropna(subset=["lat", "lon", "fecha_siniestro", "cultivo", "dano_pond"])
-    df = df[df["cultivo"].isin({"trigo", "maiz", "soja", "girasol"})]
+    df = df[df["cultivo"].isin({"trigo", "maiz", "soja", "girasol",
+                                "sorgo", "cebada"})]
+
+    # Filtro opcional por provincia
+    if provincia_filter and "provincia" in df.columns:
+        before = len(df)
+        df = df[df["provincia"].astype(str).str.upper().str.strip()
+                == provincia_filter.upper().strip()]
+        print(f"   Filtro provincia='{provincia_filter}': {before} → {len(df)} filas.")
 
     df = df.reset_index(drop=True)
     return df
@@ -562,8 +590,11 @@ def parse_args() -> argparse.Namespace:
         description="Validación de señal satelital sobre dataset real Córdoba 2018.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--cordoba-dir", default="Cordoba",
-                   help="Directorio con los shapefiles de Córdoba.")
+    p.add_argument("--input-dir", default="Cordoba",
+                   help="Directorio con los shapefiles de peritajes (Cordoba, Villegas, etc.).")
+    p.add_argument("--provincia", default=None,
+                   help="Filtro opcional por provincia (e.g. 'BUENOS AIRES'). "
+                        "Sin valor → no filtra.")
     p.add_argument("--dry-run", action="store_true",
                    help="Solo carga + parseo, sin tocar CDSE.")
     p.add_argument("--sample", type=int, default=0,
@@ -593,9 +624,11 @@ def main() -> int:
     print("🌾 Validación de Señal Satelital — Córdoba 2018 (Track B-minus)")
     print("=" * 72)
 
-    base = (PROJECT_ROOT / args.cordoba_dir).resolve()
-    print(f"📂 Dataset: {base}")
-    df = load_cordoba(base)
+    base = (PROJECT_ROOT / args.input_dir).resolve()
+    print(f"📂 Dataset : {base}")
+    if args.provincia:
+        print(f"🗺️  Filtro provincia: {args.provincia}")
+    df = load_dataset(base, provincia_filter=args.provincia)
     print(f"✅ Dataset cargado: {len(df)} peritajes válidos tras normalización.")
     print(f"   Cultivos: {df['cultivo'].value_counts().to_dict()}")
     print(f"   Estadíos: {df['estadio'].value_counts().to_dict()}")
