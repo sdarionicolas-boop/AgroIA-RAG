@@ -1094,8 +1094,10 @@ elif modo == "🏆 Ranking Global":
 elif modo == "🛰️ Siniestros (Eventualidades)":
     st.subheader("🛰️ Evaluación Satelital de Siniestros (Eventualidades)")
     st.markdown("""
-    Este módulo evalúa el impacto de eventos climáticos comparando la salud del cultivo 
-    **antes y después** del siniestro, con delineación automática de lotes (SAM).
+    Este módulo evalúa el impacto de eventos climáticos comparando la salud del cultivo
+    **antes y después** del siniestro sobre el **polígono real del lote** que provee la
+    aseguradora. El sistema **no infiere bordes** — usa la geometría que sube el cliente,
+    garantizando trazabilidad actuarial.
     """)
 
     # Inicializar estado si no existe
@@ -1105,7 +1107,11 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
         st.session_state.gdf_ev_cache = None
 
     with st.expander("📝 Configuración del Análisis", expanded=st.session_state.siniestro_res is None):
-        st.info("💡 **Formatos:** ZIP (Shapefile), GeoJSON, KML o KMZ.")
+        st.info(
+            "💡 **Recomendado para B2B (aseguradoras):** subir el **polígono real del lote** "
+            "en SHP/ZIP, GeoJSON, KML o KMZ. El sistema usa esa geometría tal cual, sin inferir bordes — "
+            "los datos de cartera del cliente no se mezclan con modelos de visión computacional."
+        )
         up_file = st.file_uploader("Subir Polígono o Puntos del Lote", type=["geojson", "kml", "kmz", "shp", "zip"])
 
         if up_file:
@@ -1197,17 +1203,56 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                 cultivo_ev = st.selectbox("Confirmar Cultivo", cult_list, index=default_cult_idx)
                 nombre_caso = st.text_input("Nombre de Referencia", f"Siniestro_{target_row.iloc[0][id_col]}")
 
-            # ── TASK 2: CONFIGURACIÓN DE DELINEACIÓN Y FALLBACK ──
+            # ── CONFIGURACIÓN DE GEOMETRÍA ──
+            # Decisión de producto B2B (junio 2026):
+            #   - Si el cliente subió polígono → se valida con shapely.is_valid y se usa tal cual.
+            #   - Si subió punto GPS → se ofrecen fallbacks de demo, NO SAM. SAM se retiró
+            #     del flujo individual B2B por riesgo regulatorio (un falso negativo en
+            #     la delineación es indefendible frente a un perito). SAM sigue activo en
+            #     el modo masivo de ingesta y en el bot Telegram B2C.
+            #   - Ver docs/sales/deployment_hybrid_compliance.md (Bloque A) y AGENTS.md §13.
             gdf_ev = target_row.copy()
             geom_type = gdf_ev.geometry.iloc[0].geom_type
-            metodo_delineacion = "🧠 Automático (SAM con Fallback)"
+            metodo_delineacion = "✍️ Dibujar Polígono en Mapa"
             manual_polygon_gdf = None
 
+            # Si vino un polígono real del cliente, validarlo con shapely (guardrail B2B).
+            if geom_type in ('Polygon', 'MultiPolygon'):
+                from src.pipeline.sam_fallback import validate_user_polygon
+                _client_validation = validate_user_polygon(gdf_ev.geometry.iloc[0])
+                if not _client_validation.valid:
+                    st.error(
+                        "❌ El polígono cargado no es válido: "
+                        + "; ".join(_client_validation.reasons)
+                        + ". Verificá el shapefile/KML antes de continuar."
+                    )
+                    st.stop()
+                elif _client_validation.reasons:
+                    st.info(
+                        "✓ Polígono del cliente validado y reparado: "
+                        + "; ".join(_client_validation.reasons)
+                    )
+                    gdf_ev = gdf_ev.copy()
+                    gdf_ev = gdf_ev.set_geometry(
+                        gpd.GeoSeries([_client_validation.geometry], crs=gdf_ev.crs)
+                    )
+                else:
+                    st.success(
+                        "✓ Polígono del cliente aceptado (shapely.is_valid = True, "
+                        "área dentro de rango plausible). No se infieren bordes."
+                    )
+
             if geom_type == 'Point':
-                st.markdown("##### 📐 Configuración del Contorno del Lote")
+                st.warning(
+                    "⚠️ **Detectamos un punto GPS, no un polígono.** Para uso B2B "
+                    "recomendamos cargar el polígono real del lote (SHP/KML/GeoJSON). "
+                    "Las opciones a continuación son **fallbacks de demostración** y "
+                    "no garantizan precisión actuarial."
+                )
+                st.markdown("##### 📐 Fallback de geometría (modo demo)")
                 metodo_delineacion = st.radio(
-                    "Selecciona cómo definir los límites del lote para esta demo:",
-                    ["🧠 Automático (SAM con Fallback)", "📐 Envolvente desde Punto GPS (~80 ha)", "✍️ Dibujar Polígono en Mapa"],
+                    "Fallback a usar (ninguno reemplaza al polígono real del lote):",
+                    ["✍️ Dibujar Polígono en Mapa", "📐 Envolvente desde Punto GPS (~80 ha)"],
                     index=0,
                     key="metodo_del_radio"
                 )
@@ -1313,59 +1358,15 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                                     geometry=[poly_geom], crs="EPSG:4326",
                                 )
                                 st.success(f"✅ Envolvente generada: ~{buffer_area:.1f} ha (rectángulo ~1110 m × ~909 m)")
-                            else:
-                                st.info("🧠 Iniciando delineación automática con SAM...")
-                                sam_fallback_reason = None
-                                try:
-                                    temp_csv = os.path.join(tempfile.gettempdir(), f"sam_st_{int(time.time())}.csv")
-                                    pd.DataFrame([{'id': nombre_caso, 'lat': pt.y, 'lon': pt.x, 'fecha': fecha_ev.strftime('%Y-%m-%d')}]).to_csv(temp_csv, index=False)
-
-                                    from Poligonizacion.poligonizador_final import AgroIAPipeline
-                                    poly_pipe = AgroIAPipeline()
-                                    poly_pipe.cargar_datos(temp_csv)
-                                    out_prefix = os.path.join(tempfile.gettempdir(), f"sam_out_{int(time.time())}")
-                                    poly_pipe.ejecutar(output_prefix=out_prefix)
-
-                                    geojson_path = f"{out_prefix}.geojson"
-                                    if not os.path.exists(geojson_path):
-                                        raise ValueError("SAM no produjo archivo de salida.")
-                                    gdf_ev_candidate = gpd.read_file(geojson_path)
-                                    if gdf_ev_candidate.empty:
-                                        raise ValueError("SAM devolvió GeoDataFrame vacío.")
-
-                                    # Validar geometría devuelta por SAM (is_valid + área plausible)
-                                    from src.pipeline.sam_fallback import validate_user_polygon
-                                    sam_geom = gdf_ev_candidate.geometry.iloc[0]
-                                    validation = validate_user_polygon(sam_geom)
-                                    if not validation.valid:
-                                        sam_fallback_reason = (
-                                            "SAM produjo geometría no utilizable: "
-                                            + "; ".join(validation.reasons)
-                                        )
-                                    else:
-                                        gdf_ev = gdf_ev_candidate
-                                        st.success(
-                                            f"✅ Lote delineado con SAM: "
-                                            f"{gdf_ev.iloc[0].get('area_ha', 0):.1f} ha"
-                                        )
-                                    if os.path.exists(temp_csv):
-                                        os.remove(temp_csv)
-                                except Exception as e:
-                                    sam_fallback_reason = f"{type(e).__name__}: {e}"
-
-                                if sam_fallback_reason is not None:
-                                    from src.pipeline.sam_fallback import approximate_area_ha
-                                    st.warning(
-                                        f"⚠️ Delineación SAM no aceptada ({sam_fallback_reason}). "
-                                        "Aplicando fallback de envolvente geométrica."
-                                    )
-                                    poly_geom = pt.buffer(0.005).envelope
-                                    fb_area = approximate_area_ha(poly_geom)
-                                    gdf_ev = gpd.GeoDataFrame(
-                                        [{'id': nombre_caso, 'area_ha': round(fb_area, 1)}],
-                                        geometry=[poly_geom], crs="EPSG:4326",
-                                    )
-                                    st.success(f"✅ Fallback de envolvente geométrica aplicado: ~{fb_area:.1f} ha")
+                            # NOTA: el branch "Automático (SAM con Fallback)" se removió del
+                            # flujo individual B2B en junio 2026. SAM tiene tasa de fallo > 30 %
+                            # sobre parcelas latinoamericanas (linderos difusos, sombras, lotes
+                            # < 0.5 ha) y, cuando falla, devuelve geometría sin gracia que un
+                            # perito no puede defender. SAM sigue activo en:
+                            #   - el modo de ingesta masiva (líneas ~470-560 de este archivo)
+                            #   - el bot Telegram B2C donde el costo de error es bajo
+                            # Para el flujo individual de aseguradoras se EXIGE polígono real
+                            # del cliente; los fallbacks de arriba son sólo para demo.
 
                         # ── Análisis Satelital ──
                         from src.pipeline.eodag_extractor import (
