@@ -1,0 +1,8 @@
+{
+  "scenario": "water",
+  "path": "safe_sam_delineation",
+  "source": "buffer",
+  "message": "sam_exception: RuntimeError: No vegetation mask found over water surface.",
+  "area_ha": 83.91929974038761,
+  "confidence": null
+}

@@ -423,7 +423,7 @@ with st.sidebar:
     lote_ids = [r[0] for r in lotes_info] if lotes_info else []
     
     modo = st.radio("Modo de análisis: ",
-                    ["🗺️ Mapa de Lotes", "🔍 Inspeccionar un Lote", "⚖️ Comparar Lote A vs B", "🏆 Ranking Global", "🛰️ Siniestros (Eventualidades)"],
+                    ["🗺️ Mapa de Lotes", "🔍 Inspeccionar un Lote", "⚖️ Comparar Lote A vs B", "🏆 Ranking Global", "🛰️ Siniestros (Eventualidades)", "⚠️ Prevención Super Niño"],
                     index=0)
     st.divider()
 
@@ -432,6 +432,18 @@ with st.sidebar:
         reset_database()
         st.success("Base de datos reiniciada.")
         st.rerun()
+
+    st.divider()
+
+    # ── COMPLIANCE Y ARQUITECTURA B2B ──
+    with st.expander("🛡️ Seguridad y Compliance B2B"):
+        st.markdown("""
+        **Modelo de Despliegue Híbrido**
+        
+        AgroIA protege la confidencialidad de tu cartera:
+        - **Nube Pública (Copernicus)**: Solo se envían coordenadas geográficas anónimas para procesar NDVI.
+        - **Servidores Propios (On-Premise / Local)**: La base de datos relacional/vectorial y el motor RAG (Ollama) corren localmente en la infraestructura de la aseguradora, impidiendo la fuga de información sensible.
+        """)
 
     st.divider()
 
@@ -484,26 +496,51 @@ with st.sidebar:
 
                         if sam_available:
                             st.write("🧠 Modelo SAM detectado. Usando delineación inteligente...")
-                            poly_pipe = AgroIAPipeline()
-                            poly_pipe.cargar_datos(tmp_path)
-                            # Inyectar el cultivo seleccionado a los datos cargados si no lo tienen
-                            if poly_pipe.df is not None:
-                                poly_pipe.df['cultivo'] = cultivo_default
-                            out_prefix = os.path.join(tempfile.gettempdir(), f"agroia_st_{int(time.time())}")
-                            generated_file = poly_pipe.ejecutar(output_prefix=out_prefix)
+                            try:
+                                poly_pipe = AgroIAPipeline()
+                                poly_pipe.cargar_datos(tmp_path)
+                                if poly_pipe.df is not None:
+                                    poly_pipe.df['cultivo'] = cultivo_default
+                                out_prefix = os.path.join(tempfile.gettempdir(), f"agroia_st_{int(time.time())}")
+                                generated_file = poly_pipe.ejecutar(output_prefix=out_prefix)
+                            except Exception as e:
+                                st.warning(f"⚠️ Error en la delineación inteligente con SAM: {e}")
+                                generated_file = None
                             
                             if generated_file and os.path.exists(generated_file):
                                 geojson_path = generated_file
                             else:
-                                st.error("❌ Falló la delineación inteligente. Verificá tu conexión a Copernicus o las coordenadas.")
-                                st.stop()
+                                st.warning("⚠️ La delineación inteligente con SAM falló o no tiene suficiente confianza. Aplicando fallback de buffer geométrico automático...")
+                                for idx, row in df_input.iterrows():
+                                    lid = str(row[id_col]) if id_col else f"LOTE_{idx+1:03d}"
+                                    lat, lon = float(row[lat_col]), float(row[lon_col])
+                                    st.write(f"  → Aplicando buffer para {lid}...")
+                                    poly_geom = Point(lon, lat).buffer(0.005).envelope
+                                    features.append({
+                                        "type": "Feature",
+                                        "properties": {
+                                            "id": lid,
+                                            "cultivo": str(row.get('cultivo', cultivo_default)).lower(),
+                                            "localidad": str(row.get('localidad', 'Desconocida'))
+                                        },
+                                        "geometry": mapping(poly_geom)
+                                    })
+                                    time.sleep(0.2)
+                                
+                                out_prefix = os.path.join(tempfile.gettempdir(), f"agroia_st_{int(time.time())}")
+                                geojson_path = f"{out_prefix}.geojson"
+                                with open(geojson_path, 'w') as f:
+                                    json.dump({"type": "FeatureCollection", "features": features}, f)
                         else:
                             st.warning("⚠️ Modelo SAM no encontrado. Usando delineación geométrica (buffer)...")
                             for idx, row in df_input.iterrows():
                                 lid = str(row[id_col]) if id_col else f"LOTE_{idx+1:03d}"
                                 lat, lon = float(row[lat_col]), float(row[lon_col])
                                 st.write(f"  → Procesando {lid}...")
-                                # Buffer de 0.005 grados (~500m) para simular un lote de ~25ha
+                                # Envelope de buffer(0.005°): rectángulo de ~1110 m × ~909 m
+                                # en latitud pampeana → área aproximada ~80–100 ha.
+                                # (El comentario histórico "~500 m / ~25 ha" estaba mal:
+                                # 0.005° es el RADIO del círculo, no el lado del cuadrado.)
                                 poly_geom = Point(lon, lat).buffer(0.005).envelope
                                 features.append({
                                     "type": "Feature",
@@ -573,14 +610,15 @@ with st.sidebar:
 
     st.divider()
 
-    if not lotes_info and modo != "🗺️ Mapa de Lotes" and modo != "🛰️ Siniestros (Eventualidades)":
+    if not lotes_info and modo != "🗺️ Mapa de Lotes" and modo != "🛰️ Siniestros (Eventualidades)" and modo != "⚠️ Prevención Super Niño":
         st.warning("📭 No hay lotes cargados en la base de datos.")
         st.info("Subí un archivo CSV para empezar.")
         st.stop()
-    if modo == "🔍 Inspeccionar un Lote":
+    if modo in ("🔍 Inspeccionar un Lote", "⚠️ Prevención Super Niño"):
         lote_a = st.selectbox("Seleccioná el lote", lote_ids)
-        ver_historial = st.checkbox("📈 Evolución histórica", value=True)
-        ver_componentes = st.checkbox("📊 Componentes del Score", value=True)
+        if modo == "🔍 Inspeccionar un Lote":
+            ver_historial = st.checkbox("📈 Evolución histórica", value=True)
+            ver_componentes = st.checkbox("📊 Componentes del Score", value=True)
     elif modo == "⚖️ Comparar Lote A vs B":
         col1, col2 = st.columns(2)
         with col1:
@@ -1107,6 +1145,81 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                 cultivo_ev = st.selectbox("Confirmar Cultivo", cult_list, index=default_cult_idx)
                 nombre_caso = st.text_input("Nombre de Referencia", f"Siniestro_{target_row.iloc[0][id_col]}")
 
+            # ── TASK 2: CONFIGURACIÓN DE DELINEACIÓN Y FALLBACK ──
+            gdf_ev = target_row.copy()
+            geom_type = gdf_ev.geometry.iloc[0].geom_type
+            metodo_delineacion = "🧠 Automático (SAM con Fallback)"
+            manual_polygon_gdf = None
+
+            if geom_type == 'Point':
+                st.markdown("##### 📐 Configuración del Contorno del Lote")
+                metodo_delineacion = st.radio(
+                    "Selecciona cómo definir los límites del lote para esta demo:",
+                    ["🧠 Automático (SAM con Fallback)", "📐 Envolvente desde Punto GPS (~80 ha)", "✍️ Dibujar Polígono en Mapa"],
+                    index=0,
+                    key="metodo_del_radio"
+                )
+                
+                if metodo_delineacion == "✍️ Dibujar Polígono en Mapa":
+                    st.info("✍️ **Instrucciones:** Usá la herramienta de dibujo (polígono o rectángulo) a la izquierda del mapa para trazar el lote alrededor del punto rojo. Al finalizar, hacé clic en 'Ejecutar Peritaje' más abajo.")
+                    pt = gdf_ev.geometry.iloc[0]
+                    m_draw = folium.Map(
+                        location=[pt.y, pt.x], zoom_start=15, 
+                        tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+                        attr='Google Satellite Hybrid'
+                    )
+                    folium.Marker([pt.y, pt.x], popup="Punto Siniestro", icon=folium.Icon(color='red', icon='info-sign')).add_to(m_draw)
+                    
+                    from folium.plugins import Draw
+                    draw_plugin = Draw(
+                        export=False,
+                        position='topleft',
+                        draw_options={
+                            'polyline': False,
+                            'polygon': True,
+                            'circle': False,
+                            'rectangle': True,
+                            'marker': False,
+                            'circlemarker': False
+                        },
+                        edit_options={'remove': True}
+                    )
+                    draw_plugin.add_to(m_draw)
+                    
+                    output_draw = st_folium(m_draw, height=350, width="100%", key="mapa_delineacion_manual")
+                    
+                    if output_draw and output_draw.get("all_drawings"):
+                        drawings = output_draw.get("all_drawings")
+                        if drawings:
+                            last_geom = drawings[-1]["geometry"]
+                            try:
+                                from shapely.geometry import shape
+                                from src.pipeline.sam_fallback import validate_user_polygon
+                                poly_shape = shape(last_geom)
+                                validation = validate_user_polygon(poly_shape)
+                                if validation.valid:
+                                    manual_polygon_gdf = gpd.GeoDataFrame(
+                                        [{'id': nombre_caso}],
+                                        geometry=[validation.geometry],
+                                        crs="EPSG:4326",
+                                    )
+                                    if validation.reasons:
+                                        st.info(
+                                            "✓ Geometría capturada y reparada: "
+                                            + "; ".join(validation.reasons)
+                                        )
+                                    else:
+                                        st.success("✓ Geometría dibujada capturada correctamente.")
+                                else:
+                                    st.error(
+                                        "❌ Polígono inválido — no se acepta: "
+                                        + "; ".join(validation.reasons)
+                                        + ". Volvé a dibujarlo sin auto-intersecciones y con área "
+                                        "entre 0.5 ha y 50 000 ha."
+                                    )
+                            except Exception as e:
+                                st.error(f"Error procesando la geometría dibujada: {e}")
+
             btn_run = st.button("🚀 Ejecutar Peritaje Inteligente", type="primary")
             
             if st.session_state.siniestro_res is not None:
@@ -1116,34 +1229,91 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
 
             if btn_run:
                 try:
-                    with st.spinner("⏳ Iniciando Pipeline: Delineación SAM + Análisis Copernicus CDSE..."):
+                    with st.spinner("⏳ Iniciando Pipeline: Delineación + Análisis Copernicus CDSE..."):
                         # Inicializar EODAG
                         from src.pipeline.eodag_extractor import init_eodag
                         init_eodag()
 
-                        # ── INTEGRACIÓN SAM: Delineación automática si el input es un Punto ──
                         import time
-                        gdf_ev = target_row.copy()
-                        geom_type = gdf_ev.geometry.iloc[0].geom_type
-                        
+                        pt = target_row.geometry.iloc[0]
+
                         if geom_type == 'Point':
-                            st.info("📍 Punto GPS detectado. Delineando lote con SAM...")
-                            pt = gdf_ev.geometry.iloc[0]
-                            temp_csv = os.path.join(tempfile.gettempdir(), f"sam_st_{int(time.time())}.csv")
-                            pd.DataFrame([{'id': nombre_caso, 'lat': pt.y, 'lon': pt.x, 'fecha': fecha_ev.strftime('%Y-%m-%d')}]).to_csv(temp_csv, index=False)
-                            
-                            from Poligonizacion.poligonizador_final import AgroIAPipeline
-                            poly_pipe = AgroIAPipeline()
-                            poly_pipe.cargar_datos(temp_csv)
-                            out_prefix = os.path.join(tempfile.gettempdir(), f"sam_out_{int(time.time())}")
-                            poly_pipe.ejecutar(output_prefix=out_prefix)
-                            
-                            geojson_path = f"{out_prefix}.geojson"
-                            if os.path.exists(geojson_path):
-                                gdf_ev = gpd.read_file(geojson_path)
-                                st.success(f"✅ Lote delineado: {gdf_ev.iloc[0].get('area_ha', 0):.1f} ha")
-                            else: raise ValueError("SAM no pudo delinear el lote.")
-                            if os.path.exists(temp_csv): os.remove(temp_csv)
+                            if metodo_delineacion == "✍️ Dibujar Polígono en Mapa":
+                                if manual_polygon_gdf is not None:
+                                    gdf_ev = manual_polygon_gdf
+                                    try:
+                                        gdf_ev_proj = gdf_ev.to_crs(gdf_ev.estimate_utm_crs())
+                                        area_ha = gdf_ev_proj.geometry.area.iloc[0] / 10000.0
+                                        gdf_ev['area_ha'] = area_ha
+                                    except Exception:
+                                        gdf_ev['area_ha'] = 25.0
+                                    st.success(f"✅ Usando lote dibujado manualmente: {gdf_ev.iloc[0].get('area_ha', 25.0):.1f} ha")
+                                else:
+                                    st.error("❌ No se ha capturado ningún polígono dibujado. Dibujá el lote en el mapa antes de presionar Ejecutar.")
+                                    st.stop()
+                            elif metodo_delineacion == "📐 Envolvente desde Punto GPS (~80 ha)":
+                                from src.pipeline.sam_fallback import approximate_area_ha
+                                st.info("📐 Generando envolvente geométrica alrededor del punto GPS...")
+                                poly_geom = pt.buffer(0.005).envelope
+                                buffer_area = approximate_area_ha(poly_geom)
+                                gdf_ev = gpd.GeoDataFrame(
+                                    [{'id': nombre_caso, 'area_ha': round(buffer_area, 1)}],
+                                    geometry=[poly_geom], crs="EPSG:4326",
+                                )
+                                st.success(f"✅ Envolvente generada: ~{buffer_area:.1f} ha (rectángulo ~1110 m × ~909 m)")
+                            else:
+                                st.info("🧠 Iniciando delineación automática con SAM...")
+                                sam_fallback_reason = None
+                                try:
+                                    temp_csv = os.path.join(tempfile.gettempdir(), f"sam_st_{int(time.time())}.csv")
+                                    pd.DataFrame([{'id': nombre_caso, 'lat': pt.y, 'lon': pt.x, 'fecha': fecha_ev.strftime('%Y-%m-%d')}]).to_csv(temp_csv, index=False)
+
+                                    from Poligonizacion.poligonizador_final import AgroIAPipeline
+                                    poly_pipe = AgroIAPipeline()
+                                    poly_pipe.cargar_datos(temp_csv)
+                                    out_prefix = os.path.join(tempfile.gettempdir(), f"sam_out_{int(time.time())}")
+                                    poly_pipe.ejecutar(output_prefix=out_prefix)
+
+                                    geojson_path = f"{out_prefix}.geojson"
+                                    if not os.path.exists(geojson_path):
+                                        raise ValueError("SAM no produjo archivo de salida.")
+                                    gdf_ev_candidate = gpd.read_file(geojson_path)
+                                    if gdf_ev_candidate.empty:
+                                        raise ValueError("SAM devolvió GeoDataFrame vacío.")
+
+                                    # Validar geometría devuelta por SAM (is_valid + área plausible)
+                                    from src.pipeline.sam_fallback import validate_user_polygon
+                                    sam_geom = gdf_ev_candidate.geometry.iloc[0]
+                                    validation = validate_user_polygon(sam_geom)
+                                    if not validation.valid:
+                                        sam_fallback_reason = (
+                                            "SAM produjo geometría no utilizable: "
+                                            + "; ".join(validation.reasons)
+                                        )
+                                    else:
+                                        gdf_ev = gdf_ev_candidate
+                                        st.success(
+                                            f"✅ Lote delineado con SAM: "
+                                            f"{gdf_ev.iloc[0].get('area_ha', 0):.1f} ha"
+                                        )
+                                    if os.path.exists(temp_csv):
+                                        os.remove(temp_csv)
+                                except Exception as e:
+                                    sam_fallback_reason = f"{type(e).__name__}: {e}"
+
+                                if sam_fallback_reason is not None:
+                                    from src.pipeline.sam_fallback import approximate_area_ha
+                                    st.warning(
+                                        f"⚠️ Delineación SAM no aceptada ({sam_fallback_reason}). "
+                                        "Aplicando fallback de envolvente geométrica."
+                                    )
+                                    poly_geom = pt.buffer(0.005).envelope
+                                    fb_area = approximate_area_ha(poly_geom)
+                                    gdf_ev = gpd.GeoDataFrame(
+                                        [{'id': nombre_caso, 'area_ha': round(fb_area, 1)}],
+                                        geometry=[poly_geom], crs="EPSG:4326",
+                                    )
+                                    st.success(f"✅ Fallback de envolvente geométrica aplicado: ~{fb_area:.1f} ha")
 
                         # ── Análisis Satelital ──
                         geom_ee, coords = cargar_poligono_desde_gdf(gdf_ev)
@@ -1154,15 +1324,20 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
                             tipo_evento=tipo_ev,
                             caso_nombre=nombre_caso
                         )
-                        st.session_state.siniestro_res = res
-                        st.rerun()
+                        if res is None:
+                            st.error("⚠️ No se pudieron obtener datos satelitales suficientes para el análisis. Esto puede deberse a que la fecha del siniestro es muy reciente (y el mes posterior aún no cuenta con imágenes Sentinel-2 disponibles) o a problemas de conexión con CDSE.")
+                        else:
+                            from src.pipeline.eventualidades import generar_puntos_muestreo
+                            res['df_muestreo'] = generar_puntos_muestreo(res)
+                            st.session_state.siniestro_res = res
+                            st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
 
     # ── Mostrar Resultados (si existen en el estado) ─────────────────────────
     if st.session_state.siniestro_res:
         res = st.session_state.siniestro_res
-        
+
         st.divider()
         st.success(f"### Resultado: {res['clasificacion']}")
         
@@ -1190,12 +1365,51 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
             st.write(f"- 🔴 **Severo:** {res['area_severa']:.1f} ha")
             st.info(f"El **{res['area_afectada']/max(res['area_total'],0.1)*100:.1f}%** del lote presenta algún grado de afectación.")
 
-        st.subheader("🛰️ Comparativa Satelital y Mapa de Calor")
+        st.subheader("🛰️ Comparativa Satelital y Gráficos de Severidad")
         panel_img = plot_comparativa_ndvi(res)
         if panel_img:
-            st.image(panel_img, caption="NDVI Pre-Evento vs Post-Evento vs Severidad", use_container_width=True)
+            st.image(panel_img, caption="Comparativa de Vigor (NDVI) y Niveles de Daño", use_container_width=True)
 
-        m_ev = generar_mapa_folium(res)
+        st.subheader("🖼️ Prueba Visual: Mapa de Calor NDVI (Antes vs Después)")
+        from src.pipeline.eventualidades import plot_mapa_calor_ndvi_antes_despues
+        with st.spinner("⏳ Descargando rasters espaciales y generando mapa de calor antes/después..."):
+            heat_map_img = plot_mapa_calor_ndvi_antes_despues(res)
+            if heat_map_img:
+                st.image(heat_map_img, caption="Mapa de calor NDVI: Vigor vegetativo real antes y después del siniestro", use_container_width=True)
+            else:
+                st.warning("⚠️ No se pudieron obtener los rasters espaciales detallados para esta zona/fecha desde CDSE. Mostrando visor interactivo de vectores.")
+
+        # Asegurar que df_muestreo esté en res (por si es de una sesión antigua o carga previa)
+        if 'df_muestreo' not in res or res['df_muestreo'] is None or res['df_muestreo'].empty:
+            from src.pipeline.eventualidades import generar_puntos_muestreo
+            res['df_muestreo'] = generar_puntos_muestreo(res)
+
+        m_ev = generar_mapa_folium(res, df_muestreo=res['df_muestreo'])
+        
+        # Guardar copia física en el disco (directorio outputs)
+        out_html = OUTPUTS_DIR / f"Mapa_{res['caso_nombre']}.html"
+        try:
+            m_ev.save(str(out_html))
+        except Exception as e:
+            pass
+
+        # Botón para descargar el HTML interactivo directamente desde el navegador
+        try:
+            import io
+            html_data = io.BytesIO()
+            m_ev.save(html_data, close_file=False)
+            html_bytes = html_data.getvalue()
+            st.download_button(
+                label="📥 Descargar Visor del Mapa (HTML)",
+                data=html_bytes,
+                file_name=f"visor_agroia_{res['caso_nombre']}.html",
+                mime="text/html",
+                key="download_mapa_html"
+            )
+            st.write(f"💾 *Copia guardada en el disco:* `{out_html}`")
+        except Exception as e:
+            st.write(f"💾 *Copia guardada en:* `{out_html}`")
+
         st_folium(m_ev, height=600, width="100%", key="mapa_siniestro_persistente")
 
         # ── Detalle Técnico ─────────────────────────────────────────
@@ -1207,3 +1421,139 @@ elif modo == "🛰️ Siniestros (Eventualidades)":
             col_t2.write(f"**Delta Ajustado:** {res['delta_adj_val']}")
             
             st.info(f"Metodología: ΔNDVI Relativo ({res['delta_rel_val']}%) × Peso Fenológico ({res['peso_fenologico']}) × Factor Conservador (0.92)")
+
+# ── Modo: Prevención Super Niño ──────────────────────────────────────────
+elif modo == "⚠️ Prevención Super Niño":
+    st.subheader("⚠️ Prevención y Gestión ante el Fenómeno 'Super Niño' (LAC)")
+    st.markdown(
+        """
+        El módulo de **Gestión de Crisis Super Niño** evalúa la vulnerabilidad de las parcelas
+        para toda Latinoamérica y el Caribe (LAC) según su geolocalización, altitud, vigor satelital (NDVI)
+        y cultivo, basándose en la alerta oficial de la OMM (90% de probabilidad de evento extremo en el segundo semestre).
+        """
+    )
+    
+    # ── Panel de Alerta Global ──
+    from src.pipeline.el_nino import obtener_alertas_el_nino
+    alerta_c = obtener_alertas_el_nino()
+    
+    st.error(
+        f"🚨 **{alerta_c['estado']}** — Probabilidad: **{alerta_c['probabilidad']}%**\n\n"
+        f"**Período Crítico:** {alerta_c['periodo_critico']}\n\n"
+        f"**Anomalía Térmica Oceánica:** Pacífico Ecuatorial Central (Niño 3.4): **+{alerta_c['anomalia_tsm_nino34']:.1f}°C** | Costa Sudamericana (Niño 1+2): **+{alerta_c['anomalia_tsm_nino12']:.1f}°C**\n\n"
+        f"**Detalles:** {alerta_c['comunicado']}\n\n"
+        f"Fuentes oficiales: *{alerta_c['fuente']}*"
+    )
+    
+    st.divider()
+    
+    # Obtener datos del lote seleccionado
+    datos = get_datos_lote(lote_a)
+    if not datos:
+        st.warning(f"Sin datos para **{lote_a}**.")
+        st.stop()
+        
+    st.markdown(f"### 📋 Reporte de Vulnerabilidad: **{lote_a}**")
+    st.markdown(f"**Cultivo:** {datos['cultivo'].capitalize()} | **Superficie:** {datos['superficie_ha']} ha | **Ubicación:** {datos['centroide'][0]:.4f}°, {datos['centroide'][1]:.4f}°")
+    
+    # Extraer el score calculado de El Niño
+    el_nino = datos.get("meta", {}).get("el_nino", {})
+    
+    if not el_nino:
+        try:
+            from src.pipeline.el_nino import calcular_vulnerabilidad_el_nino, obtener_recomendaciones_el_nino
+            import geopandas as gpd
+            from shapely.geometry import Point
+            
+            c = datos.get("centroide", [])
+            # Fallback a coordenadas por defecto si no tiene centroide
+            if not c or len(c) < 2 or c[0] == 0:
+                c = [-36.0, -61.0] # Argentina Pampeana como fallback
+            
+            lat, lon = c[0], c[1]
+            geom = Point(lon, lat)
+            lote_gdf = gpd.GeoDataFrame(geometry=[geom], crs="EPSG:4326")
+            
+            # Calcular al vuelo
+            el_nino = calcular_vulnerabilidad_el_nino(
+                lote_gdf, 
+                datos["cultivo"], 
+                datos.get("ndvi", 0.5), 
+                25.0, # temp_actual default
+                10.0, # precip_actual default
+                elevation=None
+            )
+            recs = obtener_recomendaciones_el_nino(datos["cultivo"], el_nino["region_id"], el_nino["score"])
+            el_nino["recomendaciones"] = recs
+            st.caption("💡 *Nota: Diagnóstico calculado en tiempo real (datos históricos heredados).*")
+        except Exception as e:
+            st.warning(f"No se pudo calcular la vulnerabilidad: {e}")
+            st.stop()
+        
+    score_nino = el_nino.get("score", 0.0)
+    riesgo_nino = el_nino.get("riesgo", "N/D")
+    region_nombre = el_nino.get("region_nombre", "N/D")
+    region_impacto = el_nino.get("region_impacto", "N/D")
+    factores = el_nino.get("factores", [])
+    recs = el_nino.get("recomendaciones", {})
+    
+    # Visualizar barra de color
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.metric(label="📊 Score de Vulnerabilidad", value=f"{score_nino}/10", delta=f"Riesgo {riesgo_nino}", delta_color="inverse" if riesgo_nino in ("ALTO", "CRÍTICO") else "normal")
+    with c2:
+        color_bar = "red" if riesgo_nino in ("ALTO", "CRÍTICO") else "orange" if riesgo_nino == "MEDIO" else "green"
+        st.progress(int(score_nino * 10), text=f"Nivel de Exposición: {riesgo_nino}")
+        
+    # Tarjeta de detalles regionales
+    st.info(
+        f"🗺️ **Región LAC Determinada:** {region_nombre}\n\n"
+        f"💥 **Amenazas Principales:** {region_impacto}"
+    )
+    
+    # Factores analizados
+    with st.expander("🔍 Factores de Riesgo Analizados en el Lote", expanded=True):
+        for f in factores:
+            st.markdown(f"- {f}")
+            
+    # Recomendaciones accionables
+    st.markdown("### 🛠️ Plan de Mitigación y Prevención")
+    t_inm, t_cp, t_mp = st.tabs(["⚡ Tareas Inmediatas", "📅 Corto Plazo (Campaña)", "🌲 Mediano Plazo"])
+    
+    with t_inm:
+        st.markdown("**Acciones operativas urgentes:**")
+        for idx, r in enumerate(recs.get("inmediatas", [])):
+            st.checkbox(r, key=f"rec_inm_{lote_a}_{idx}", value=False)
+            
+    with t_cp:
+        st.markdown("**Tareas clave a implementar en la campaña en curso:**")
+        for idx, r in enumerate(recs.get("corto_plazo", [])):
+            st.checkbox(r, key=f"rec_cp_{lote_a}_{idx}", value=False)
+            
+    with t_mp:
+        st.markdown("**Estrategias de mediano y largo plazo para resiliencia climática:**")
+        for idx, r in enumerate(recs.get("mediano_plazo", [])):
+            st.checkbox(r, key=f"rec_mp_{lote_a}_{idx}", value=False)
+            
+    # Chat RAG especializado para El Niño
+    st.divider()
+    st.subheader(f"💬 Consultas de Contingencia sobre {lote_a}")
+    st.markdown("Pregúntale a la IA sobre planes de contingencia, laboreo de suelos, variedades o fertilización específica para mitigar el impacto en esta parcela.")
+    
+    if "nino_msgs" not in st.session_state:
+        st.session_state.nino_msgs = []
+        
+    for m in st.session_state.nino_msgs:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+            
+    if pregunta := st.chat_input(f"Preguntar a AgroIA sobre gestión de El Niño en {lote_a}..."):
+        st.session_state.nino_msgs.append({"role": "user", "content": pregunta})
+        with st.chat_message("user"):
+            st.markdown(pregunta)
+        with st.chat_message("assistant"):
+            with st.spinner("Generando recomendaciones adaptativas..."):
+                prompt_enriquecido = f"Con respecto a la alerta de El Niño / Super Niño y los riesgos de este lote, {pregunta}"
+                resp = consultar_agente(lote_a, prompt_enriquecido)
+            st.markdown(resp)
+        st.session_state.nino_msgs.append({"role": "assistant", "content": resp})
