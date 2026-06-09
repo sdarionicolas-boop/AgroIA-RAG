@@ -203,6 +203,19 @@ Para asegurar la integridad del sistema ante el jurado, se ha adoptado una postu
 - **Tasación Humana:** Mide daño mecánico visual (grano caído, espiga rota).
 - **Interpretación del desvío:** En etapas de madurez (ej. Trigo en Noviembre), es normal encontrar una subestimación del satélite frente al reporte de campo. Esto no es un error del sistema, sino la captura de dos fenómenos biológicos distintos. El sistema provee una **segunda opinión objetiva** para mitilar el sesgo humano.
 
+### 13.1 Decisión de producto (junio 2026): SAM solo en B2C
+
+SAM (Segment Anything Model) **se retiró del flujo individual B2B** para aseguradoras por riesgo regulatorio: su tasa de fallo en parcelas latinoamericanas (linderos difusos, sombras, lotes < 0.5 ha) supera el 30% y, cuando falla, devuelve geometría que un perito no puede defender frente al productor.
+
+- **B2B (aseguradoras, individual):** se **exige polígono real del cliente** en SHP/KML/GeoJSON desde su catastro. La geometría se valida con `validate_user_polygon()` de [`src/pipeline/sam_fallback.py`](src/pipeline/sam_fallback.py) (shapely.is_valid + área plausible 0.5–50 000 ha + reparación con `make_valid`). Si es inválida, el sistema corta el flujo antes de tocar CDSE.
+- **B2B (ingesta masiva interna):** SAM sigue activo porque el operador es interno y puede revisar/descartar resultados.
+- **B2C (bot Telegram, gratuito):** SAM sigue activo con fallback informativo; el costo de un error es bajo porque es un servicio sin SLA.
+
+Referencias para próximos agentes:
+- Wiring UI: [`src/streamlit_app.py`](src/streamlit_app.py) modo Siniestros (Eventualidades).
+- Copy comercial: [`docs/sales/deployment_hybrid_compliance.md`](docs/sales/deployment_hybrid_compliance.md) — Bloque A y nota interna sobre SAM.
+- Plan de validación (Track B): [`docs/validation/predictive_validation_plan.md`](docs/validation/predictive_validation_plan.md).
+
 ---
 
 ## Instrucción clave para Agentes
