@@ -45,7 +45,7 @@ except ImportError:
     HAS_MATPLOTLIB = False
 
 from .agro_math import TABLA_FENOLOGICA, FACTOR_CONSERVADOR, get_peso_fenologico
-from .eodag_extractor import init_eodag, get_eodag_ndvi
+from .eodag_extractor import init_eodag, get_eodag_ndvi, get_eodag_s1_stats
 
 
 # ─────────────────────────────────────────────────────────────
@@ -112,6 +112,45 @@ def run_eventualidades(geom_shapely, fecha_evento, cultivo, tipo_evento,
         log_fn("⚠ No se pudieron obtener datos satelitales suficientes para el análisis.")
         return None
 
+    # ── Sentinel-1 (Radar SAR) pre y post via CDSE ───────────
+    log_fn("Consultando datos de radar Sentinel-1 CDSE...")
+    s1_pre = get_eodag_s1_stats(geom_shapely, pre_year, pre_month)
+    s1_post = get_eodag_s1_stats(geom_shapely, post_year, post_month)
+
+    confirmado_radar = False
+    tipo_alerta_radar = "Ninguna"
+    mensaje_radar = "No se detectaron anomalías significativas en la firma de radar."
+    s1_vv_pre, s1_vh_pre, s1_ratio_pre = s1_pre.get('vv'), s1_pre.get('vh'), s1_pre.get('ratio')
+    s1_vv_post, s1_vh_post, s1_ratio_post = s1_post.get('vv'), s1_post.get('vh'), s1_post.get('ratio')
+
+    if s1_ratio_pre is not None and s1_ratio_post is not None:
+        delta_ratio = s1_ratio_pre - s1_ratio_post
+        delta_vv = s1_vv_pre - s1_vv_post if s1_vv_pre is not None and s1_vv_post is not None else 0.0
+
+        # Lógica de decisión física por tipo de evento
+        tipo_evento_upper = str(tipo_evento).upper()
+        if any(kw in tipo_evento_upper for kw in ["GRANIZO", "VIENTO", "TORMENTA"]):
+            # Vuelco (Lodging) se asocia con caída en VH/VV (el ratio se hace más negativo, delta_ratio positivo)
+            if delta_ratio > 1.5:
+                confirmado_radar = True
+                tipo_alerta_radar = "VUELCO_DE_CULTIVO"
+                mensaje_radar = (
+                    f"Confirmado por radar: Pérdida de estructura vertical "
+                    f"(vuelco/lodging) detectado con caída en el ratio VH/VV de {delta_ratio:.1f} dB."
+                )
+        elif any(kw in tipo_evento_upper for kw in ["INUNDACION", "INUNDACIÓN", "LLUVIA", "ANAGAMIENTO", "ANEGAMIENTO"]):
+            # Inundación causa caída fuerte de retrodispersión (especialmente VV) por efecto espejo sobre agua libre
+            if s1_vv_post < -18.0 and delta_vv > 3.0:
+                confirmado_radar = True
+                tipo_alerta_radar = "INUNDACION_CONFIRMADA"
+                mensaje_radar = (
+                    f"Confirmado por radar: Presencia de agua libre compatible con inundación. "
+                    f"Retrodispersión VV cayó {delta_vv:.1f} dB (valor post: {s1_vv_post:.1f} dB)."
+                )
+
+        if confirmado_radar:
+            log_fn(f"🚨 Alerta radar: {mensaje_radar}")
+
     # ── Calculo de daño ──────────────────────────────────────
     delta_rel_val = round(max((ndvi_pre - ndvi_post) / max(ndvi_pre, 0.01) * 100, 0), 1)
     dano_pond_val = round(delta_rel_val * peso_fenologico * FACTOR_CONSERVADOR, 1)
@@ -149,8 +188,11 @@ def run_eventualidades(geom_shapely, fecha_evento, cultivo, tipo_evento,
         area_moderada = round(area_afectada_ha * 0.15, 1)
         area_severa = round(area_afectada_ha * 0.05, 1)
 
-    # Confianza basada en disponibilidad de ambos NDVI (extensible a métricas de nubes)
-    confianza = 'Alta' if (ndvi_pre and ndvi_post and ndvi_pre > 0.05 and ndvi_post > 0.05) else 'Media'
+    # Confianza basada en disponibilidad de ambos NDVI y radar
+    if confirmado_radar:
+        confianza = 'Crítica (Confirmada por Radar)'
+    else:
+        confianza = 'Alta' if (ndvi_pre and ndvi_post and ndvi_pre > 0.05 and ndvi_post > 0.05) else 'Media'
 
     result = {
         'caso_nombre': caso_nombre,
@@ -173,6 +215,19 @@ def run_eventualidades(geom_shapely, fecha_evento, cultivo, tipo_evento,
         'area_moderada': max(0.0, area_moderada),
         'area_severa': max(0.0, area_severa),
         'geom_shapely': geom_shapely,
+        'pre_year': pre_year,
+        'pre_month': pre_month,
+        'post_year': post_year,
+        'post_month': post_month,
+        's1_vv_pre': s1_vv_pre,
+        's1_vh_pre': s1_vh_pre,
+        's1_ratio_pre': s1_ratio_pre,
+        's1_vv_post': s1_vv_post,
+        's1_vh_post': s1_vh_post,
+        's1_ratio_post': s1_ratio_post,
+        'confirmado_radar': confirmado_radar,
+        'tipo_alerta_radar': tipo_alerta_radar,
+        'mensaje_radar': mensaje_radar,
     }
 
     return result
@@ -183,12 +238,12 @@ def run_eventualidades(geom_shapely, fecha_evento, cultivo, tipo_evento,
 # ─────────────────────────────────────────────────────────────
 
 def generar_mapa_folium(result, df_muestreo=None):
-    """Genera mapa con la ubicación del evento."""
+    """Genera mapa con la ubicación del evento y puntos georeferenciados de acción."""
     geom = result['geom_shapely']
     centro = [geom.centroid.y, geom.centroid.x]
 
     m = folium.Map(
-        location=centro, zoom_start=14,
+        location=centro, zoom_start=15,
         tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
         attr='Google Satellite Hybrid'
     )
@@ -197,9 +252,35 @@ def generar_mapa_folium(result, df_muestreo=None):
     coords = [[lat, lon] for lon, lat in geom.exterior.coords]
     folium.Polygon(
         locations=coords,
-        color='red', weight=3, fill=True, fill_opacity=0.2,
-        tooltip=f"Lote Afectado: {result['dano_pond_val']}%"
+        color='white', weight=3, fill=True, fill_opacity=0.1,
+        tooltip=f"Lote Analizado: {result['caso_nombre']}"
     ).add_to(m)
+
+    # Si no se pasó df_muestreo, generarlo
+    if df_muestreo is None or df_muestreo.empty:
+        df_muestreo = generar_puntos_muestreo(result)
+
+    # Marcadores por categoria
+    colores = {'Leve': 'cadetblue', 'Moderado': 'orange', 'Severo': 'red'}
+    iconos  = {'Leve': 'info-sign', 'Moderado': 'warning-sign', 'Severo': 'exclamation-sign'}
+
+    for _, row in df_muestreo.iterrows():
+        cat = row['Categoria']
+        folium.Marker(
+            location=[row['Latitud'], row['Longitud']],
+            popup=folium.Popup(
+                f"<b>Categoría de Impacto: {cat}</b><br>"
+                f"Lat: {row['Latitud']:.6f}<br>Lon: {row['Longitud']:.6f}<br>"
+                f"<a href='{row['Google_Maps']}' target='_blank'>Ver en Google Maps</a>",
+                max_width=220),
+            tooltip=f"Punto {cat}",
+            icon=folium.Icon(color=colores.get(cat, 'blue'), icon=iconos.get(cat, 'info-sign'))
+        ).add_to(m)
+
+    # Herramientas de campo (igual que en Colab)
+    plugins.LocateControl(auto_start=False).add_to(m)       # GPS
+    plugins.MeasureControl(primary_length_unit='meters').add_to(m)  # Medición
+    folium.LayerControl(collapsed=False).add_to(m)
 
     return m
 
@@ -321,9 +402,222 @@ def plot_comparativa_ndvi(result):
         return None
 
 
+def descargar_raster_ndvi(geom_shapely, year, month):
+    """
+    Descarga el raster de NDVI desde CDSE para un mes/año y geometría dada.
+    Retorna (ndarray, affine_transform) o (None, None) si falla.
+    """
+    import calendar
+    import requests
+    import rasterio
+    from shapely.geometry import mapping
+    from .eodag_extractor import get_cdse_token
+    
+    token = get_cdse_token()
+    if not token:
+        return None, None
+        
+    bounds = geom_shapely.bounds
+    last_day = calendar.monthrange(year, month)[1]
+    
+    evalscript = """
+    //VERSION=3
+    function setup() {
+      return {
+        input: ["B04", "B08", "SCL", "dataMask"],
+        output: { id: "default", bands: 1, sampleType: "FLOAT32" },
+        mosaicking: "ORBIT"
+      };
+    }
+    function evaluatePixel(samples) {
+      let maxNdvi = -1.0;
+      let bestVal = -1.0;
+      for (let i = 0; i < samples.length; i++) {
+        let s = samples[i];
+        let isCloud = s.SCL === 3 || s.SCL === 8 || s.SCL === 9 || s.SCL === 10;
+        if (s.dataMask && !isCloud) {
+          let ndvi = (s.B08 - s.B04) / (s.B08 + s.B04);
+          if (ndvi > maxNdvi) {
+            maxNdvi = ndvi;
+            bestVal = ndvi;
+          }
+        }
+      }
+      return [bestVal];
+    }
+    """
+    
+    payload = {
+        "input": {
+            "bounds": {
+                "bbox": [bounds[0], bounds[1], bounds[2], bounds[3]],
+                "properties": {"crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"}
+            },
+            "data": [{
+                "type": "S2L2A",
+                "dataFilter": {"timeRange": {"from": f"{year}-{month:02d}-01T00:00:00Z", "to": f"{year}-{month:02d}-{last_day:02d}T23:59:59Z"}}
+            }]
+        },
+        "output": {"resx": 0.0001, "resy": 0.0001, "responses": [{"identifier": "default", "format": {"type": "image/tiff"}}]},
+        "evalscript": evalscript
+    }
+    
+    try:
+        resp = requests.post(
+            'https://sh.dataspace.copernicus.eu/api/v1/process', 
+            headers={'Authorization': f'Bearer {token}'}, 
+            json=payload, 
+            timeout=60
+        )
+        if resp.status_code == 200:
+            with rasterio.MemoryFile(resp.content) as memfile:
+                with memfile.open() as dataset:
+                    data = dataset.read(1)
+                    transform = dataset.transform
+                    return data, transform
+    except Exception as e:
+        print(f"Error descargando raster NDVI: {e}")
+    return None, None
+
+
+def plot_mapa_calor_ndvi_antes_despues(result):
+    """
+    Genera una figura comparativa con dos paneles:
+    - Panel izquierdo: Mapa de calor NDVI antes del siniestro.
+    - Panel derecho: Mapa de calor NDVI después del siniestro.
+    Retorna un BytesIO con la imagen PNG o None.
+    """
+    if not HAS_MATPLOTLIB:
+        return None
+        
+    try:
+        geom = result['geom_shapely']
+        pre_year = result.get('pre_year')
+        pre_month = result.get('pre_month')
+        post_year = result.get('post_year')
+        post_month = result.get('post_month')
+        
+        if not all([pre_year, pre_month, post_year, post_month]):
+            fecha_obj = datetime.strptime(result['fecha_evento'], '%Y-%m-%d')
+            if fecha_obj.month > 1:
+                pre_year, pre_month = fecha_obj.year, fecha_obj.month - 1
+            else:
+                pre_year, pre_month = fecha_obj.year - 1, 12
+            if fecha_obj.month < 12:
+                post_year, post_month = fecha_obj.year, fecha_obj.month + 1
+            else:
+                post_year, post_month = fecha_obj.year + 1, 1
+
+        print(f"Descargando rasters NDVI para {pre_year}-{pre_month:02d} y {post_year}-{post_month:02d}...")
+        raster_pre, trans_pre = descargar_raster_ndvi(geom, pre_year, pre_month)
+        raster_post, trans_post = descargar_raster_ndvi(geom, post_year, post_month)
+        
+        if raster_pre is None or raster_post is None:
+            print("No se pudieron obtener los rasters pre/post de CDSE.")
+            return None
+            
+        # Enmascarar nubes/invalidos (valores <= -1 o > 1)
+        raster_pre = np.where((raster_pre > -1) & (raster_pre <= 1), raster_pre, np.nan)
+        raster_post = np.where((raster_post > -1) & (raster_post <= 1), raster_post, np.nan)
+        
+        # Crear la figura comparativa
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        fig.patch.set_facecolor('white')
+        
+        # Configurar paleta de color RdYlGn (Rojo a Verde, tipico para NDVI)
+        cmap = plt.get_cmap('RdYlGn')
+        
+        # Panel 1: Antes
+        im1 = axes[0].imshow(raster_pre, cmap=cmap, vmin=0, vmax=1)
+        axes[0].set_title(f"NDVI Pre-Evento ({pre_month:02d}/{pre_year})", fontsize=12, fontweight='bold', color='#1b4332')
+        axes[0].axis('off')
+        
+        # Panel 2: Después
+        im2 = axes[1].imshow(raster_post, cmap=cmap, vmin=0, vmax=1)
+        axes[1].set_title(f"NDVI Post-Evento ({post_month:02d}/{post_year})", fontsize=12, fontweight='bold', color='#1b4332')
+        axes[1].axis('off')
+        
+        # Barra de color compartida
+        cbar = fig.colorbar(im2, ax=axes.ravel().tolist(), orientation='horizontal', pad=0.08, shrink=0.6)
+        cbar.set_label('Índice de Vigor Vegetativo (NDVI)', fontsize=10, fontweight='bold')
+        
+        fig.suptitle(f"Prueba Visual NDVI: {result['caso_nombre']}", fontsize=14, fontweight='bold', color='#112211', y=0.98)
+        
+        # Guardar en outputs/ y retornar en buffer
+        from pathlib import Path
+        outputs_dir = Path("outputs")
+        outputs_dir.mkdir(exist_ok=True)
+        out_png = outputs_dir / f"captura_ndvi_antes_despues_{result['caso_nombre']}.png"
+        fig.savefig(str(out_png), format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        print(f"Copia del mapa de calor guardada físicamente en: {out_png}")
+        
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=130, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+        buf.seek(0)
+        return buf
+    except Exception as e:
+        print(f"Excepción al graficar mapa de calor NDVI: {e}")
+        return None
+
+
 # Otros métodos stubbed para evitar errores de importación
 def generar_puntos_muestreo(result, n_puntos=5):
-    return pd.DataFrame()
+    """
+    Genera puntos de muestreo georeferenciados dentro del lote analizado.
+    Ordena los puntos por su proyección diagonal para simular franjas o gradientes de daño (Leve/Moderado/Severo).
+    """
+    import random
+    from shapely.geometry import Point
+    
+    geom = result['geom_shapely']
+    minx, miny, maxx, maxy = geom.bounds
+    
+    cats = []
+    if float(result.get('area_leve', 0)) > 0:
+        cats.extend(['Leve'] * n_puntos)
+    if float(result.get('area_moderada', 0)) > 0:
+        cats.extend(['Moderado'] * n_puntos)
+    if float(result.get('area_severa', 0)) > 0:
+        cats.extend(['Severo'] * n_puntos)
+        
+    N = len(cats) if cats else n_puntos
+    if not cats:
+        cats.extend(['Leve'] * n_puntos)
+        
+    puntos_geom = []
+    intentos = 0
+    # Generar puntos aleatorios contenidos en el polígono
+    while len(puntos_geom) < N and intentos < 3000:
+        intentos += 1
+        x, y = random.uniform(minx, maxx), random.uniform(miny, maxy)
+        p = Point(x, y)
+        if geom.contains(p):
+            puntos_geom.append((x, y))
+            
+    # Fallback si el polígono es extremadamente complejo o pequeño y no se encontraron suficientes puntos
+    if not puntos_geom:
+        puntos_geom = [(geom.centroid.x, geom.centroid.y)] * N
+    while len(puntos_geom) < N:
+        puntos_geom.append(puntos_geom[-1])
+        
+    # Ordenar los puntos espacialmente por la suma de coordenadas (gradiente diagonal)
+    puntos_geom = sorted(puntos_geom, key=lambda pt: pt[0] + pt[1])
+    
+    # Ordenar categorías para alinear con el gradiente (Leve -> Moderado -> Severo)
+    cats_ordenadas = sorted(cats, key=lambda c: {'Leve': 1, 'Moderado': 2, 'Severo': 3}.get(c, 1))
+    
+    puntos_res = []
+    for (lon, lat), cat in zip(puntos_geom, cats_ordenadas):
+        puntos_res.append({
+            'Categoria': cat,
+            'Latitud': round(lat, 6),
+            'Longitud': round(lon, 6),
+            'Google_Maps': f"https://www.google.com/maps?q={lat:.6f},{lon:.6f}"
+        })
+        
+    return pd.DataFrame(puntos_res)
+
 
 def generar_reporte_html(result, output_path=None):
     return "<html><body>Reporte Soberano Copernicus CDSE</body></html>"

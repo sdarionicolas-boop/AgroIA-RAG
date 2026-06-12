@@ -237,7 +237,7 @@ def get_cache_db():
     conn.commit()
     return conn
 
-def get_cache_key(geom, year, month):
+def get_cache_key(geom, year, month, sensor="S2"):
     try:
         from shapely.ops import transform
         def round_coords(x, y, z=None):
@@ -246,7 +246,7 @@ def get_cache_key(geom, year, month):
         wkt = geom_rounded.wkt
     except Exception:
         wkt = geom.wkt
-    key_str = f"{wkt}_{year}_{month}"
+    key_str = f"{sensor}_{wkt}_{year}_{month}"
     return hashlib.md5(key_str.encode('utf-8')).hexdigest()
 
 def query_cache_stats(cache_key):
@@ -391,7 +391,7 @@ def get_eodag_stats_with_state(geom_shapely, year, month) -> CDSEResult:
 
     Garantiza: nunca tira excepción al caller; siempre devuelve CDSEResult.
     """
-    cache_key = get_cache_key(geom_shapely, year, month)
+    cache_key = get_cache_key(geom_shapely, year, month, sensor="S2")
     cached_data, timestamp = query_cache_stats(cache_key)
     current_year = datetime.now().year
     is_past_year = (year < current_year)
@@ -598,7 +598,7 @@ def zonificar_lote_eodag(geom_shapely, year, month, n_clusters=3):
     import time
     import io
 
-    cache_key = get_cache_key(geom_shapely, year, month)
+    cache_key = get_cache_key(geom_shapely, year, month, sensor="S2")
     cached_zones, cached_points, timestamp = query_cache_process(cache_key)
     
     current_year = datetime.now().year
@@ -739,3 +739,217 @@ def zonificar_lote_eodag(geom_shapely, year, month, n_clusters=3):
             points_gdf = gpd.read_file(io.StringIO(cached_points))
             return zones_gdf, points_gdf
         return None
+
+# ===========================================================================
+# Sentinel-1 (SAR) Extractor Integration
+# ===========================================================================
+
+def _build_s1_statistics_payload(geom_shapely, year, month):
+    """Construye el payload de la Statistical API de CDSE para Sentinel-1 (S1GRD)."""
+    import calendar
+    from shapely.geometry import mapping
+    
+    last_day = calendar.monthrange(year, month)[1]
+    start_date = f"{year}-{month:02d}-01T00:00:00Z"
+    end_date = f"{year}-{month:02d}-{last_day:02d}T23:59:59Z"
+    
+    # Evalscript para extraer VV y VH en formato lineal
+    evalscript = """
+    //VERSION=3
+    function setup() {
+      return {
+        input: ["VV", "VH", "dataMask"],
+        output: [
+          {id: "default", bands: 2, sampleType: "FLOAT32"},
+          {id: "dataMask", bands: 1}
+        ]
+      };
+    }
+    function evaluatePixel(samples) {
+      let mask = samples.dataMask ? 1 : 0;
+      return { default: [samples.VV, samples.VH], dataMask: [mask] };
+    }
+    """
+    
+    return {
+        "input": {
+            "bounds": {
+                "geometry": mapping(geom_shapely),
+                "properties": {"crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"}
+            },
+            "data": [{
+                "type": "S1GRD",
+                "dataFilter": {
+                    "timeRange": {"from": start_date, "to": end_date},
+                    "acquisitionMode": "IW"
+                },
+                "processing": {
+                    "orthorectify": True,
+                    "backCoeff": "GAMMA0_ELLIPSOID"
+                }
+            }]
+        },
+        "aggregation": {
+            "timeRange": {"from": start_date, "to": end_date},
+            "aggregationInterval": {"of": "P1D"},
+            "evalscript": evalscript,
+            "resx": 0.0001, "resy": 0.0001
+        },
+        "calculations": {
+            "default": {
+                "statistics": {"default": {"mean": True, "min": True, "max": True, "stDev": True}}
+            }
+        }
+    }
+
+def get_eodag_s1_stats_with_state(geom_shapely, year, month) -> CDSEResult:
+    """Consulta CDSE con retry exponencial y devuelve CDSEResult para Sentinel-1."""
+    import time
+    import json
+    
+    cache_key = get_cache_key(geom_shapely, year, month, sensor="S1")
+    cached_data, timestamp = query_cache_stats(cache_key)
+    current_year = datetime.now().year
+    is_past_year = (year < current_year)
+    ttl_seconds = CACHE_TTL_SECONDS_CURRENT_YEAR
+    now = time.time()
+    cache_age = (now - timestamp) if (timestamp is not None) else None
+
+    # 1. Caché disponible y vigente
+    if cached_data is not None:
+        if is_past_year:
+            _safe_print(f"    💾 [CACHÉ-S1-PASADO] {year}-{month:02d}: caché permanente.")
+            return _record_state(CDSEResult(
+                data=json.loads(cached_data), state=CDSEDataState.CACHED_VALID,
+                cache_age_seconds=cache_age, attempts=0,
+                message=f"S1: caché permanente (año {year} < {current_year}).",
+                year=year, month=month,
+            ))
+        if cache_age is not None and cache_age < ttl_seconds * STALE_FRACTION:
+            _safe_print(f"    💾 [CACHÉ-S1] {year}-{month:02d}: caché vigente.")
+            return _record_state(CDSEResult(
+                data=json.loads(cached_data), state=CDSEDataState.CACHED_VALID,
+                cache_age_seconds=cache_age, attempts=0,
+                message=f"S1: caché vigente (edad {cache_age/3600:.1f} h).",
+                year=year, month=month,
+            ))
+        if cache_age is not None and cache_age < ttl_seconds:
+            _safe_print(f"    🟡 [STALE-S1] {year}-{month:02d}: caché cerca de expirar ({cache_age/3600:.1f} h).")
+            return _record_state(CDSEResult(
+                data=json.loads(cached_data), state=CDSEDataState.CACHED_STALE,
+                cache_age_seconds=cache_age, attempts=0,
+                message=f"S1: caché stale.",
+                year=year, month=month,
+            ))
+        _safe_print(f"    ⏳ [CACHÉ-S1] {year}-{month:02d}: expiró. Re-consultando API CDSE...")
+
+    # 2. Obtener token
+    token = get_cdse_token()
+    if not token:
+        if cached_data is not None:
+            _safe_print(f"    🟠 [FALLBACK-S1] {year}-{month:02d}: sin token. Usando caché expirada.")
+            return _record_state(CDSEResult(
+                data=json.loads(cached_data), state=CDSEDataState.CACHED_EXPIRED_FALLBACK,
+                cache_age_seconds=cache_age, attempts=0,
+                message="S1: auth CDSE fallida; servido desde caché expirada.",
+                year=year, month=month,
+            ))
+        _safe_print(f"    🔴 [NO-DATA-S1] {year}-{month:02d}: sin token y sin caché.")
+        return _record_state(CDSEResult(
+            data=None, state=CDSEDataState.NO_DATA_AVAILABLE,
+            cache_age_seconds=None, attempts=0,
+            message="S1: sin auth CDSE y sin caché previa.",
+            year=year, month=month,
+        ))
+
+    # 3. Loop de retry exponencial sobre el POST a Statistical API
+    payload = _build_s1_statistics_payload(geom_shapely, year, month)
+    last_error = None
+    attempts_done = 0
+    for attempt, delay in enumerate(RETRY_DELAYS_SECONDS, start=1):
+        attempts_done = attempt
+        data, err = _attempt_cdse_stats_post(payload, token)
+        if data is not None:
+            save_cache_stats(cache_key, json.dumps(data))
+            _safe_print(f"    ✅ [FRESH-S1] {year}-{month:02d}: respuesta CDSE en intento {attempt}/{len(RETRY_DELAYS_SECONDS)}.")
+            return _record_state(CDSEResult(
+                data=data, state=CDSEDataState.FRESH,
+                cache_age_seconds=None, attempts=attempt,
+                message=f"S1: FRESH en intento {attempt}.",
+                year=year, month=month,
+            ))
+        last_error = err
+        _safe_print(f"    ⚠️ CDSE-S1 intento {attempt}/{len(RETRY_DELAYS_SECONDS)} falló: {err}")
+        if attempt < len(RETRY_DELAYS_SECONDS):
+            time.sleep(delay)
+
+    # 4. Todos los intentos fallaron
+    if cached_data is not None:
+        _safe_print(f"    🟠 [FALLBACK-S1] {year}-{month:02d}: todos los intentos fallaron. Usando caché expirada.")
+        return _record_state(CDSEResult(
+            data=json.loads(cached_data), state=CDSEDataState.CACHED_EXPIRED_FALLBACK,
+            cache_age_seconds=cache_age, attempts=attempts_done,
+            message=f"S1: API CDSE no respondió. Servido desde caché expirada.",
+            year=year, month=month,
+        ))
+    _safe_print(f"    🔴 [NO-DATA-S1] {year}-{month:02d}: todos los intentos fallaron sin caché previa.")
+    return _record_state(CDSEResult(
+        data=None, state=CDSEDataState.NO_DATA_AVAILABLE,
+        cache_age_seconds=None, attempts=attempts_done,
+        message=f"S1: API CDSE no respondió tras {attempts_done} intentos.",
+        year=year, month=month,
+    ))
+
+def get_eodag_s1_stats(geom_shapely, year, month):
+    """Obtiene valores medios de retrodispersión de radar (VV y VH) para Sentinel-1.
+
+    Retorna un diccionario: {'vv': float|None, 'vh': float|None, 'ratio': float|None}
+    en escala decibélica (dB).
+    """
+    _safe_print(f"🛰️ CDSE Radar Sentinel-1 {year}-{month:02d}...")
+    result = get_eodag_s1_stats_with_state(geom_shapely, year, month)
+    data = result.data
+    if not data:
+        return {'vv': None, 'vh': None, 'ratio': None}
+
+    valid_vv = []
+    valid_vh = []
+    
+    for d in data:
+        outputs = d.get('outputs', {})
+        default_out = outputs.get('default', {})
+        bands = default_out.get('bands', {})
+        
+        # B0: VV, B1: VH
+        vv_stats = bands.get('B0', {}).get('stats', {})
+        vh_stats = bands.get('B1', {}).get('stats', {})
+        
+        vv_mean = vv_stats.get('mean')
+        vh_mean = vh_stats.get('mean')
+        
+        if vv_mean is not None and vv_mean != 'NaN' and vh_mean is not None and vh_mean != 'NaN':
+            try:
+                vv_val = float(vv_mean)
+                vh_val = float(vh_mean)
+                if not math.isnan(vv_val) and not math.isnan(vh_val) and vv_val > 0 and vh_val > 0:
+                    # Convertir lineal a decibel (dB)
+                    vv_db = 10 * math.log10(vv_val)
+                    vh_db = 10 * math.log10(vh_val)
+                    valid_vv.append(vv_db)
+                    valid_vh.append(vh_db)
+            except Exception:
+                pass
+
+    if valid_vv and valid_vh:
+        avg_vv = sum(valid_vv) / len(valid_vv)
+        avg_vh = sum(valid_vh) / len(valid_vh)
+        avg_ratio = avg_vh - avg_vv
+        _safe_print(f"    📊 Radar S1: VV = {avg_vv:.2f} dB, VH = {avg_vh:.2f} dB, Ratio = {avg_ratio:.2f} dB")
+        return {
+            'vv': round(avg_vv, 2),
+            'vh': round(avg_vh, 2),
+            'ratio': round(avg_ratio, 2)
+        }
+
+    _safe_print(f"    ⚠️ Sin días de radar válidos en {year}-{month:02d}")
+    return {'vv': None, 'vh': None, 'ratio': None}
